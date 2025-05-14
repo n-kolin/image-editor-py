@@ -37,7 +37,7 @@ def test_openai():
         
         # Make a simple text request to OpenAI
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "What is the capital of France?"}
@@ -52,7 +52,7 @@ def test_openai():
             "status": "success",
             "response": response.choices[0].message.content,
             "response_time_seconds": response_time,
-            "model": "gpt-3.5-turbo"
+            "model": "gpt-4o-mini"
         })
     except Exception as e:
         logger.error(f"Error testing OpenAI API: {str(e)}")
