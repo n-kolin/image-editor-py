@@ -1,0 +1,104 @@
+# קבצי סביבה - חשוב ביותר!
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*
+*.env
+
+# קבצי Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# קבצי וירטואל אנב
+venv/
+ENV/
+env/
+virtualenv/
+.venv/
+.ENV/
+.env/
+.virtualenv/
+
+# קבצי לוגים
+*.log
+logs/
+log/
+
+# קבצי מסד נתונים
+*.sqlite3
+*.db
+*.sql
+
+# קבצי מערכת
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# קבצי עורכי קוד
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# קבצים זמניים
+tmp/
+temp/
+.tmp/
+.temp/
+
+# קבצי תמונות וקבצים גדולים (אופציונלי)
+# *.jpg
+# *.jpeg
+# *.png
+# *.gif
+# *.mp4
+# *.mov
+
+# קבצי Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# קבצי תיעוד
+docs/_build/
+site/
+
+# קבצי כיסוי קוד
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.pytest_cache/
+coverage.xml
+*.cover
+
+# קבצי Render ספציפיים
+.render-buildpacks/
+
+# קבצי הפעלה
+*.pid
+*.socket
