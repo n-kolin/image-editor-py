@@ -1,6 +1,8 @@
 import base64
 import io
 import os
+import time
+import httpx
 from dotenv import load_dotenv
 from flask import Flask, request, send_file, jsonify
 from PIL import Image
@@ -15,11 +17,49 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 load_dotenv()
-# Initialize OpenAI client
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+# Initialize OpenAI client with custom HTTP client and increased timeout
+http_client = httpx.Client(timeout=60.0)  # 60 seconds timeout
+client = OpenAI(
+    api_key=os.environ.get("OPENAI_API_KEY"),
+    http_client=http_client
+)
+
 @app.route('/hello', methods=['GET'])
 def fun():
     return {'hello': 'world'}
+
+@app.route('/test-openai', methods=['GET'])
+def test_openai():
+    """Simple endpoint to test OpenAI API connection without images"""
+    try:
+        start_time = time.time()
+        
+        # Make a simple text request to OpenAI
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What is the capital of France?"}
+            ],
+            max_tokens=100
+        )
+        
+        # Calculate response time
+        response_time = time.time() - start_time
+        
+        return jsonify({
+            "status": "success",
+            "response": response.choices[0].message.content,
+            "response_time_seconds": response_time,
+            "model": "gpt-3.5-turbo"
+        })
+    except Exception as e:
+        logger.error(f"Error testing OpenAI API: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500
 
 @app.route('/edit-image', methods=['POST'])
 def edit_image():
@@ -148,24 +188,34 @@ def refine_instruction(original_instruction, image_analysis):
 def generate_edited_image(img_base64, refined_instruction):
     """Generate edited image using DALL·E 3"""
     try:
+        # Convert base64 string to bytes
+        image_data = base64.b64decode(img_base64)
+        
+        # Create a BytesIO object
+        image_bytes_io = io.BytesIO(image_data)
+        
+        logger.info("Attempting to edit image with DALL·E 3")
         response = client.images.edit(
             model="dall-e-3",
-            image=f"data:image/png;base64,{img_base64}",
+            # Pass the BytesIO object instead of a string
+            image=image_bytes_io,
             prompt=refined_instruction,
             n=1,
             size="1024x1024"
         )
+        logger.info("Successfully edited image with DALL·E 3")
         return response.data[0].url
     except Exception as e:
-        logger.error(f"Error generating edited image: {str(e)}")
-        # If DALL·E edit fails, try generation with the image as reference
+        logger.error(f"Error generating edited image with DALL·E 3: {str(e)}")
         try:
+            logger.info("Attempting fallback to image generation")
             response = client.images.generate(
                 model="dall-e-3",
                 prompt=f"Edit this image according to these instructions: {refined_instruction}. Maintain the original style and composition as much as possible.",
                 n=1,
                 size="1024x1024"
             )
+            logger.info("Successfully generated image with fallback method")
             return response.data[0].url
         except Exception as e2:
             logger.error(f"Error with fallback generation: {str(e2)}")
