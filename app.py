@@ -1,234 +1,238 @@
-import base64
-import io
 import os
-import time
-import httpx
-from dotenv import load_dotenv
-from flask import Flask, request, send_file, jsonify
-from PIL import Image
 import requests
-from openai import OpenAI
+import base64
+import json
+from flask import Flask, request, jsonify
+from dotenv import load_dotenv
 import logging
-from werkzeug.utils import secure_filename
+from io import BytesIO
+
+# Load environment variables
+load_dotenv()
+
+app = Flask(__name__)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-load_dotenv()
+# OpenAI API configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    logger.error("OPENAI_API_KEY environment variable is not set")
 
-# Initialize OpenAI client with custom HTTP client and increased timeout
-http_client = httpx.Client(timeout=60.0)  # 60 seconds timeout
-client = OpenAI(
-    api_key=os.environ.get("OPENAI_API_KEY"),
-    http_client=http_client
-)
+headers = {
+    "Authorization": f"Bearer {OPENAI_API_KEY}",
+    "Content-Type": "application/json"
+}
 
-@app.route('/hello', methods=['GET'])
-def fun():
-    return {'hello': 'world'}
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Simple health check endpoint that doesn't use OpenAI."""
+    return jsonify({"status": "healthy", "message": "Server is running"}), 200
 
-@app.route('/test-openai', methods=['GET'])
-def test_openai():
-    """Simple endpoint to test OpenAI API connection without images"""
+@app.route('/openai-text', methods=['POST'])
+def openai_text_only():
+    """Test endpoint that uses OpenAI but doesn't process images."""
     try:
-        start_time = time.time()
+        data = request.json
+        if not data or 'prompt' not in data:
+            return jsonify({"error": "Missing prompt in request"}), 400
         
-        # Make a simple text request to OpenAI
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "What is the capital of France?"}
-            ],
-            max_tokens=100
+        prompt = data['prompt']
+        
+        # Call OpenAI API for text completion
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json={
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 500
+            }
         )
         
-        # Calculate response time
-        response_time = time.time() - start_time
+        if response.status_code != 200:
+            logger.error(f"OpenAI API error: {response.text}")
+            return jsonify({"error": "OpenAI API error", "details": response.text}), 500
         
-        return jsonify({
-            "status": "success",
-            "response": response.choices[0].message.content,
-            "response_time_seconds": response_time,
-            "model": "gpt-4o-mini"
-        })
-    except Exception as e:
-        logger.error(f"Error testing OpenAI API: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "error": str(e)
-        }), 500
-
-@app.route('/edit-image', methods=['POST'])
-def edit_image():
-    try:
-        # Check if the post request has the file part
-        if 'image' not in request.files:
-            return jsonify({"error": "No image provided"}), 400
-        
-        file = request.files['image']
-        instruction = request.form.get('instruction', '')
-        max_width = int(request.form.get('max_width', 1024))
-        max_height = int(request.form.get('max_height', 1024))
-        
-        if file.filename == '':
-            return jsonify({"error": "No image selected"}), 400
-        
-        # Read and process the uploaded image
-        image_content = file.read()
-        img = Image.open(io.BytesIO(image_content))
-        
-        # Resize image if needed (DALL·E has size limitations)
-        img = resize_image(img, max_width, max_height)
-        
-        # Convert image to base64 for API calls
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        
-        # Step 1: Analyze the image using GPT-4o Vision
-        analysis = analyze_image(img_base64, instruction)
-        logger.info(f"Image analysis: {analysis}")
-        
-        # Step 2: Refine the user instruction based on the analysis
-        refined_instruction = refine_instruction(instruction, analysis)
-        logger.info(f"Refined instruction: {refined_instruction}")
-        
-        # Step 3: Generate the edited image using DALL·E 3
-        edited_image_url = generate_edited_image(img_base64, refined_instruction)
-        
-        # Step 4: Download and return the edited image
-        edited_image_data = download_image(edited_image_url)
-        
-        # Create a BytesIO object from the image data
-        result_image = io.BytesIO(edited_image_data)
-        result_image.seek(0)
-        
-        return send_file(
-            result_image,
-            mimetype='image/png',
-            as_attachment=True,
-            download_name='edited_image.png'
-        )
+        result = response.json()
+        return jsonify({"response": result["choices"][0]["message"]["content"]}), 200
     
     except Exception as e:
-        logger.error(f"Error processing image: {str(e)}")
+        logger.error(f"Error in openai-text endpoint: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-def resize_image(img, max_width, max_height):
-    """Resize image while maintaining aspect ratio"""
-    width, height = img.size
+@app.route('/process-image', methods=['POST'])
+def process_image():
+    """
+    Main endpoint that processes an image based on modification instructions.
     
-    # Calculate new dimensions while maintaining aspect ratio
-    if width > max_width or height > max_height:
-        ratio = min(max_width / width, max_height / height)
-        new_width = int(width * ratio)
-        new_height = int(height * ratio)
-        img = img.resize((new_width, new_height), Image.LANCZOS)
-    
-    return img
-
-def analyze_image(img_base64, instruction):
-    """Analyze the image using GPT-4o Vision to identify objects and context"""
+    Expected JSON payload:
+    {
+        "image_url": "https://aws-bucket-url/image.jpg",
+        "instructions": "Change the red car to green"
+    }
+    """
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert image analyzer. Identify all important objects, people, colors, and context in the image. Focus on elements that might be relevant to the user's editing instruction."
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"Analyze this image in detail. The user wants to: {instruction}. Identify all relevant objects, their positions, colors, and any other details that would help with precise image editing."},
-                        {"type": "image", "image": f"data:image/png;base64,{img_base64}"}
-                    ]
-                }
-            ],
-            max_tokens=500
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        logger.error(f"Error analyzing image: {str(e)}")
-        return "Could not analyze the image."
-
-def refine_instruction(original_instruction, image_analysis):
-    """Refine the user's instruction based on image analysis"""
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert at creating precise image editing instructions for DALL·E 3. Your task is to convert user instructions into detailed, specific prompts that will produce the best results."
-                },
-                {
-                    "role": "user",
-                    "content": f"""
-                    Original user instruction: "{original_instruction}"
-                    
-                    Image analysis: {image_analysis}
-                    
-                    Create a detailed, specific instruction for DALL·E 3 that will achieve what the user wants.
-                    The instruction should be precise about what objects to modify, their positions, colors, and any other relevant details.
-                    Focus only on the editing task, don't include explanations or notes.
-                    """
-                }
-            ],
-            max_tokens=500
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        logger.error(f"Error refining instruction: {str(e)}")
-        return original_instruction
-
-def generate_edited_image(img_base64, refined_instruction):
-    """Generate edited image using DALL·E 3"""
-    try:
-        # Convert base64 string to bytes
-        image_data = base64.b64decode(img_base64)
+        data = request.json
+        if not data:
+            return jsonify({"error": "Missing request data"}), 400
         
-        # Create a BytesIO object
-        image_bytes_io = io.BytesIO(image_data)
+        image_url = data.get('image_url')
+        instructions = data.get('instructions')
         
-        logger.info("Attempting to edit image with DALL·E 3")
-        response = client.images.edit(
-            model="dall-e-3",
-            # Pass the BytesIO object instead of a string
-            image=image_bytes_io,
-            prompt=refined_instruction,
-            n=1,
-            size="1024x1024"
-        )
-        logger.info("Successfully edited image with DALL·E 3")
-        return response.data[0].url
-    except Exception as e:
-        logger.error(f"Error generating edited image with DALL·E 3: {str(e)}")
+        if not image_url or not instructions:
+            return jsonify({"error": "Missing image_url or instructions"}), 400
+        
+        # Step 1: Download the image from AWS
         try:
-            logger.info("Attempting fallback to image generation")
-            response = client.images.generate(
-                model="dall-e-3",
-                prompt=f"Edit this image according to these instructions: {refined_instruction}. Maintain the original style and composition as much as possible.",
-                n=1,
-                size="1024x1024"
+            image_response = requests.get(image_url)
+            image_response.raise_for_status()
+            image_data = image_response.content
+            
+            # Convert image to base64
+            base64_image = base64.b64encode(image_data).decode('utf-8')
+            
+            logger.info(f"Successfully downloaded image from {image_url}")
+        except Exception as e:
+            logger.error(f"Error downloading image: {str(e)}")
+            return jsonify({"error": f"Error downloading image: {str(e)}"}), 500
+        
+        # Step 2: Analyze the image with GPT-4o
+        try:
+            analysis_response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json={
+                    "model": "gpt-4o",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Analyze this image in detail. Describe the main objects, colors, and composition."
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "max_tokens": 500
+                }
             )
-            logger.info("Successfully generated image with fallback method")
-            return response.data[0].url
-        except Exception as e2:
-            logger.error(f"Error with fallback generation: {str(e2)}")
-            raise Exception("Failed to generate edited image")
+            
+            analysis_response.raise_for_status()
+            analysis_result = analysis_response.json()
+            image_analysis = analysis_result["choices"][0]["message"]["content"]
+            
+            logger.info("Successfully analyzed image with GPT-4o")
+        except Exception as e:
+            logger.error(f"Error analyzing image with GPT-4o: {str(e)}")
+            return jsonify({"error": f"Error analyzing image with GPT-4o: {str(e)}"}), 500
+        
+        # Step 3: Refine the instructions with GPT-4o
+        try:
+            refinement_response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json={
+                    "model": "gpt-4o",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are an assistant that helps refine image editing instructions. Make the instructions precise and clear for DALL-E 3 to understand."
+                        },
+                        {
+                            "role": "user",
+                            "content": f"Image analysis: {image_analysis}\n\nOriginal instructions: {instructions}\n\nPlease refine these instructions to be precise and clear for DALL-E 3 to understand, based on the image analysis."
+                        }
+                    ],
+                    "max_tokens": 500
+                }
+            )
+            
+            refinement_response.raise_for_status()
+            refinement_result = refinement_response.json()
+            refined_instructions = refinement_result["choices"][0]["message"]["content"]
+            
+            logger.info("Successfully refined instructions with GPT-4o")
+        except Exception as e:
+            logger.error(f"Error refining instructions with GPT-4o: {str(e)}")
+            return jsonify({"error": f"Error refining instructions with GPT-4o: {str(e)}"}), 500
+        
+        # Step 4: Generate the modified image with DALL-E 3
+        try:
+            dalle_prompt = f"Edit this image according to these instructions: {refined_instructions}"
+            
+            dalle_response = requests.post(
+                "https://api.openai.com/v1/images/edits",
+                headers=headers,
+                files={
+                    "image": ("image.jpg", BytesIO(image_data), "image/jpeg"),
+                },
+                data={
+                    "prompt": dalle_prompt,
+                    "n": 1,
+                    "size": "1024x1024",
+                    "response_format": "b64_json"
+                }
+            )
+            
+            # If DALL-E edit fails, try DALL-E generation with the original image as reference
+            if dalle_response.status_code != 200:
+                logger.warning(f"DALL-E edit failed, trying DALL-E generation: {dalle_response.text}")
+                
+                dalle_generation_prompt = f"Create a new version of this image with the following changes: {refined_instructions}"
+                
+                dalle_response = requests.post(
+                    "https://api.openai.com/v1/images/generations",
+                    headers=headers,
+                    json={
+                        "model": "dall-e-3",
+                        "prompt": dalle_generation_prompt,
+                        "n": 1,
+                        "size": "1024x1024",
+                        "response_format": "b64_json"
+                    }
+                )
+            
+            dalle_response.raise_for_status()
+            dalle_result = dalle_response.json()
+            
+            # Extract the base64 image data
+            if "data" in dalle_result and len(dalle_result["data"]) > 0:
+                if "b64_json" in dalle_result["data"][0]:
+                    modified_image_base64 = dalle_result["data"][0]["b64_json"]
+                else:
+                    # If using URL response format
+                    image_url = dalle_result["data"][0]["url"]
+                    img_response = requests.get(image_url)
+                    img_response.raise_for_status()
+                    modified_image_base64 = base64.b64encode(img_response.content).decode('utf-8')
+            
+            logger.info("Successfully generated modified image with DALL-E 3")
+        except Exception as e:
+            logger.error(f"Error generating image with DALL-E 3: {str(e)}")
+            return jsonify({"error": f"Error generating image with DALL-E 3: {str(e)}"}), 500
+        
+        # Return the results
+        return jsonify({
+            "original_instructions": instructions,
+            "refined_instructions": refined_instructions,
+            "image_analysis": image_analysis,
+            "modified_image": modified_image_base64
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in process-image endpoint: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-def download_image(url):
-    """Download image from URL"""
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.content
-    else:
-        raise Exception(f"Failed to download image: {response.status_code}")
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
