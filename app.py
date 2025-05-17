@@ -93,7 +93,7 @@ def test_openai():
             openai_host = "api.openai.com"
             logger.info(f"Testing connection to {openai_host}")
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(5)
+            s.settimeout(15)
             result = s.connect_ex((openai_host, 443))
             if result == 0:
                 logger.info(f"Connection to {openai_host}:443 successful")
