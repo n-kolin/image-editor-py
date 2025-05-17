@@ -85,7 +85,7 @@ def test_openai():
     logger.info("test-openai endpoint accessed")
     try:
         start_time = time.time()
-        logger.info("Making test request to OpenAI API with model: gpt-3.5-turbo")
+        logger.info("Making test request to OpenAI API with model: gpt-4o-mini")
         
         # Log network information
         try:
@@ -108,9 +108,9 @@ def test_openai():
             logger.error(f"Error checking network: {str(net_err)}")
         
         # Make a simple text request to OpenAI
-        logger.debug("Creating chat completion with gpt-3.5-turbo")
+        logger.debug("Creating chat completion with gpt-4o-mini")
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "What is the capital of France?"}
@@ -126,7 +126,7 @@ def test_openai():
             "status": "success",
             "response": response.choices[0].message.content,
             "response_time_seconds": response_time,
-            "model": "gpt-3.5-turbo"
+            "model": "gpt-4o-mini"
         })
     except Exception as e:
         logger.error(f"Unexpected error testing OpenAI API: {str(e)}")
@@ -279,7 +279,7 @@ def refine_instruction(original_instruction):
         start_time = time.time()
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
