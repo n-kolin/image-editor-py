@@ -243,7 +243,7 @@ def analyze_image(img_base64, instruction):
         start_time = time.time()
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -278,7 +278,7 @@ def refine_instruction(original_instruction, image_analysis):
         start_time = time.time()
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -326,7 +326,7 @@ def generate_edited_image(img_base64, refined_instruction):
         start_time = time.time()
         
         response = client.images.edit(
-            model="dall-e-3",
+            model="dall-e-2",
             # Pass the BytesIO object instead of a string
             image=image_bytes_io,
             prompt=refined_instruction,
@@ -348,7 +348,7 @@ def generate_edited_image(img_base64, refined_instruction):
             start_time = time.time()
             
             response = client.images.generate(
-                model="dall-e-3",
+                model="dall-e-2",
                 prompt=f"Edit this image according to these instructions: {refined_instruction}. Maintain the original style and composition as much as possible.",
                 n=1,
                 size="1024x1024"
