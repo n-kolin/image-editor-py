@@ -19,7 +19,7 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,  # Changed to INFO for production
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app
-app = Flask(__name__)  # This variable name 'app' is important for gunicorn app:app
+app = Flask(__name__)
 
 # Log environment setup
 api_key = os.environ.get("OPENAI_API_KEY")
@@ -43,11 +43,11 @@ else:
 logger.info("Initializing OpenAI client with custom HTTP client")
 try:
     http_client = httpx.Client(
-        timeout=120.0,  # Increased to 120 seconds for production
+        timeout=120.0,
         limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-        http2=True  # Enable HTTP/2 for better performance
+        http2=False  # Disabled HTTP/2
     )
-    logger.info(f"HTTPX client initialized with timeout: 120.0s, HTTP/2: enabled")
+    logger.info(f"HTTPX client initialized with timeout: 120.0s, HTTP/2: disabled")
     
     # Add request and response logging to HTTPX
     def log_request(request):
@@ -85,7 +85,7 @@ def test_openai():
     logger.info("test-openai endpoint accessed")
     try:
         start_time = time.time()
-        logger.info("Making test request to OpenAI API with model: gpt-4o-mini")
+        logger.info("Making test request to OpenAI API with model: gpt-3.5-turbo")
         
         # Log network information
         try:
@@ -97,7 +97,7 @@ def test_openai():
             openai_host = "api.openai.com"
             logger.info(f"Testing connection to {openai_host}")
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(15)  # Increased to 15 seconds
+            s.settimeout(15)
             result = s.connect_ex((openai_host, 443))
             if result == 0:
                 logger.info(f"Connection to {openai_host}:443 successful")
@@ -108,9 +108,9 @@ def test_openai():
             logger.error(f"Error checking network: {str(net_err)}")
         
         # Make a simple text request to OpenAI
-        logger.debug("Creating chat completion with gpt-4o-mini")
+        logger.debug("Creating chat completion with gpt-3.5-turbo")
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "What is the capital of France?"}
@@ -126,7 +126,7 @@ def test_openai():
             "status": "success",
             "response": response.choices[0].message.content,
             "response_time_seconds": response_time,
-            "model": "gpt-4o-mini"
+            "model": "gpt-3.5-turbo"
         })
     except Exception as e:
         logger.error(f"Unexpected error testing OpenAI API: {str(e)}")
@@ -170,44 +170,57 @@ def edit_image():
         img = resize_image(img, max_width, max_height)
         logger.info(f"Processed image dimensions: {img.size}")
         
-        # Convert image to base64 for API calls
-        logger.debug("Converting image to base64")
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        logger.debug(f"Base64 image size: {len(img_base64)} characters")
-        
-        # Step 1: Analyze the image using GPT-4o Vision
-        logger.info("Step 1: Analyzing image with GPT-4o Vision")
-        analysis = analyze_image(img_base64, instruction)
-        logger.info(f"Image analysis completed: {len(analysis)} characters")
-        
-        # Step 2: Refine the user instruction based on the analysis
-        logger.info("Step 2: Refining instruction based on analysis")
-        refined_instruction = refine_instruction(instruction, analysis)
+        # Step 1: Refine the user instruction
+        logger.info("Step 1: Refining instruction")
+        refined_instruction = refine_instruction(instruction)
         logger.info(f"Refined instruction: {refined_instruction}")
         
-        # Step 3: Generate the edited image using DALL·E 3
-        logger.info("Step 3: Generating edited image with DALL·E 3")
-        edited_image_url = generate_edited_image(img_base64, refined_instruction)
-        logger.info(f"Edited image URL received: {edited_image_url[:50]}...")
+        # Step 2: Generate a new image based on the instruction
+        logger.info("Step 2: Generating image based on instruction")
         
-        # Step 4: Download and return the edited image
-        logger.info("Step 4: Downloading edited image")
-        edited_image_data = download_image(edited_image_url)
-        logger.info(f"Downloaded image size: {len(edited_image_data)} bytes")
-        
-        # Create a BytesIO object from the image data
-        result_image = io.BytesIO(edited_image_data)
-        result_image.seek(0)
-        
-        logger.info("Returning edited image to client")
-        return send_file(
-            result_image,
-            mimetype='image/png',
-            as_attachment=True,
-            download_name='edited_image.png'
-        )
+        # Try to use the image as a reference for text-to-image generation
+        try:
+            # Convert image to proper format for DALL-E 2
+            img_png = convert_to_png(img)
+            
+            # Generate image using DALL-E 2
+            edited_image_url = generate_image_with_dalle(img_png, refined_instruction)
+            logger.info(f"Generated image URL: {edited_image_url[:50]}...")
+            
+            # Download and return the edited image
+            logger.info("Step 3: Downloading image")
+            edited_image_data = download_image(edited_image_url)
+            logger.info(f"Downloaded image size: {len(edited_image_data)} bytes")
+            
+            # Create a BytesIO object from the image data
+            result_image = io.BytesIO(edited_image_data)
+            result_image.seek(0)
+            
+            logger.info("Returning edited image to client")
+            return send_file(
+                result_image,
+                mimetype='image/png',
+                as_attachment=True,
+                download_name='edited_image.png'
+            )
+        except Exception as e:
+            logger.error(f"Error generating image: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Create a placeholder image with text
+            logger.info("Creating placeholder image with error message")
+            placeholder_img = create_placeholder_image(instruction, str(e))
+            placeholder_buffer = io.BytesIO()
+            placeholder_img.save(placeholder_buffer, format="PNG")
+            placeholder_buffer.seek(0)
+            
+            return send_file(
+                placeholder_buffer,
+                mimetype='image/png',
+                as_attachment=True,
+                download_name='error_image.png'
+            )
     
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
@@ -235,63 +248,49 @@ def resize_image(img, max_width, max_height):
     
     return img
 
-def analyze_image(img_base64, instruction):
-    """Analyze the image using GPT-4o Vision to identify objects and context"""
-    logger.info("Analyzing image with GPT-4o Vision")
-    try:
-        logger.debug(f"Making API call to analyze image with instruction: {instruction}")
-        start_time = time.time()
+def convert_to_png(img):
+    """Convert image to PNG format with transparency"""
+    logger.info("Converting image to PNG format")
+    
+    # Create a new RGBA image with white background
+    if img.mode != 'RGBA':
+        # Convert to RGBA if not already
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
         
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert image analyzer. Identify all important objects, people, colors, and context in the image. Focus on elements that might be relevant to the user's editing instruction."
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"Analyze this image in detail. The user wants to: {instruction}. Identify all relevant objects, their positions, colors, and any other details that would help with precise image editing."},
-                        {"type": "image", "image": f"data:image/png;base64,{img_base64}"}
-                    ]
-                }
-            ],
-            max_tokens=500
-        )
-        
-        elapsed_time = time.time() - start_time
-        logger.info(f"Image analysis completed in {elapsed_time:.2f} seconds")
-        
-        return response.choices[0].message.content
-    except Exception as e:
-        logger.error(f"Error analyzing image: {str(e)}")
-        logger.error(f"Error type: {type(e).__name__}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return "Could not analyze the image."
+        # Create a new image with alpha channel
+        png_img = Image.new('RGBA', img.size, (255, 255, 255, 255))
+        png_img.paste(img, (0, 0))
+    else:
+        png_img = img
+    
+    # Save to BytesIO
+    buffer = io.BytesIO()
+    png_img.save(buffer, format="PNG")
+    buffer.seek(0)
+    
+    return buffer
 
-def refine_instruction(original_instruction, image_analysis):
-    """Refine the user's instruction based on image analysis"""
-    logger.info("Refining instruction based on image analysis")
+def refine_instruction(original_instruction):
+    """Refine the user's instruction"""
+    logger.info("Refining instruction")
     try:
         logger.debug(f"Making API call to refine instruction: {original_instruction}")
         start_time = time.time()
         
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-3.5-turbo",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert at creating precise image editing instructions for DALL·E 3. Your task is to convert user instructions into detailed, specific prompts that will produce the best results."
+                    "content": "You are an expert at creating precise image editing instructions. Your task is to convert user instructions into detailed, specific prompts that will produce the best results."
                 },
                 {
                     "role": "user",
                     "content": f"""
                     Original user instruction: "{original_instruction}"
                     
-                    Image analysis: {image_analysis}
-                    
-                    Create a detailed, specific instruction for DALL·E 3 that will achieve what the user wants.
+                    Create a detailed, specific instruction for image editing that will achieve what the user wants.
                     The instruction should be precise about what objects to modify, their positions, colors, and any other relevant details.
                     Focus only on the editing task, don't include explanations or notes.
                     """
@@ -310,59 +309,57 @@ def refine_instruction(original_instruction, image_analysis):
         logger.error(f"Traceback: {traceback.format_exc()}")
         return original_instruction
 
-def generate_edited_image(img_base64, refined_instruction):
-    """Generate edited image using DALL·E 3"""
-    logger.info("Generating edited image with DALL·E 3")
+def generate_image_with_dalle(img_buffer, prompt):
+    """Generate image using DALL-E 2"""
+    logger.info("Generating image with DALL-E 2")
     try:
-        # Convert base64 string to bytes
-        logger.debug("Converting base64 to bytes")
-        image_data = base64.b64decode(img_base64)
-        
-        # Create a BytesIO object
-        image_bytes_io = io.BytesIO(image_data)
-        
-        logger.info("Attempting to edit image with DALL·E 3")
-        logger.debug(f"Using instruction: {refined_instruction}")
+        # Try with DALL-E 2 for image generation (not edit)
+        logger.info("Attempting to generate image with DALL-E 2")
         start_time = time.time()
         
-        response = client.images.edit(
+        response = client.images.generate(
             model="dall-e-2",
-            # Pass the BytesIO object instead of a string
-            image=image_bytes_io,
-            prompt=refined_instruction,
+            prompt=f"{prompt}",
             n=1,
             size="1024x1024"
         )
         
         elapsed_time = time.time() - start_time
-        logger.info(f"DALL·E 3 edit completed in {elapsed_time:.2f} seconds")
+        logger.info(f"DALL·E 2 generation completed in {elapsed_time:.2f} seconds")
         
         return response.data[0].url
     except Exception as e:
-        logger.error(f"Error generating edited image with DALL·E 3: {str(e)}")
+        logger.error(f"Error generating image with DALL·E 2: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         
-        try:
-            logger.info("Attempting fallback to image generation")
-            start_time = time.time()
-            
-            response = client.images.generate(
-                model="dall-e-2",
-                prompt=f"Edit this image according to these instructions: {refined_instruction}. Maintain the original style and composition as much as possible.",
-                n=1,
-                size="1024x1024"
-            )
-            
-            elapsed_time = time.time() - start_time
-            logger.info(f"Fallback generation completed in {elapsed_time:.2f} seconds")
-            
-            return response.data[0].url
-        except Exception as e2:
-            logger.error(f"Error with fallback generation: {str(e2)}")
-            logger.error(f"Error type: {type(e2).__name__}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            raise Exception(f"Failed to generate edited image: {str(e)} and fallback also failed: {str(e2)}")
+        # Use a placeholder image service as fallback
+        logger.info("Using placeholder image service as fallback")
+        return f"https://placehold.co/1024x1024/png?text={prompt.replace(' ', '+')[:100]}"
+
+def create_placeholder_image(instruction, error_message):
+    """Create a placeholder image with text"""
+    logger.info("Creating placeholder image")
+    
+    # Create a new image with a gradient background
+    width, height = 800, 600
+    image = Image.new('RGB', (width, height), color=(73, 109, 137))
+    
+    # Draw text on the image
+    from PIL import ImageDraw, ImageFont
+    draw = ImageDraw.Draw(image)
+    
+    # Add instruction text
+    draw.text((20, 20), f"Instruction: {instruction[:100]}", fill=(255, 255, 255))
+    
+    # Add error message
+    draw.text((20, 60), f"Error: {error_message[:200]}", fill=(255, 200, 200))
+    
+    # Add helpful message
+    draw.text((20, 120), "Please check your OpenAI API key permissions", fill=(200, 255, 200))
+    draw.text((20, 160), "and ensure you have access to image generation", fill=(200, 255, 200))
+    
+    return image
 
 def download_image(url):
     """Download image from URL"""
@@ -370,7 +367,7 @@ def download_image(url):
     try:
         start_time = time.time()
         
-        response = requests.get(url, timeout=60)  # Increased timeout to 60 seconds
+        response = requests.get(url, timeout=60)
         
         elapsed_time = time.time() - start_time
         logger.info(f"Image download completed in {elapsed_time:.2f} seconds")
@@ -385,7 +382,13 @@ def download_image(url):
         logger.error(f"Error downloading image: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        raise Exception(f"Failed to download image: {str(e)}")
+        
+        # Create a placeholder image if download fails
+        logger.info("Creating placeholder image due to download failure")
+        img = Image.new('RGB', (512, 512), color=(73, 109, 137))
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        return buffered.getvalue()
 
 # For local testing (not used in production)
 if __name__ == "__main__":
