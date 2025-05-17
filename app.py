@@ -2,35 +2,40 @@ import base64
 import io
 import os
 import time
-import httpx
 import traceback
 import sys
-from dotenv import load_dotenv
-from flask import Flask, request, send_file, jsonify
+import socket
+import subprocess
+from flask import Flask, request, send_file, jsonify, Blueprint
 from PIL import Image
 import requests
+import httpx
 from openai import OpenAI
 import logging
-from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
 
-# Configure more detailed logging
+# Load environment variables
+load_dotenv()
+
+# Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Changed from INFO to DEBUG for more detailed logs
+    level=logging.INFO,  # Changed to INFO for production
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('app.log')  # Also log to a file for persistence
+        logging.FileHandler('app.log')
     ]
 )
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-load_dotenv()
+# Initialize Flask app
+app = Flask(__name__)  # This variable name 'app' is important for gunicorn app:app
 
 # Log environment setup
 api_key = os.environ.get("OPENAI_API_KEY")
 if not api_key:
     logger.critical("OPENAI_API_KEY environment variable is not set!")
+    raise ValueError("OPENAI_API_KEY environment variable is not set!")
 else:
     logger.info(f"OPENAI_API_KEY is set (length: {len(api_key)})")
 
@@ -38,21 +43,19 @@ else:
 logger.info("Initializing OpenAI client with custom HTTP client")
 try:
     http_client = httpx.Client(
-        timeout=60.0,  # 60 seconds timeout
+        timeout=120.0,  # Increased to 120 seconds for production
         limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
         http2=True  # Enable HTTP/2 for better performance
     )
-    logger.info(f"HTTPX client initialized with timeout: 60.0s, HTTP/2: enabled")
+    logger.info(f"HTTPX client initialized with timeout: 120.0s, HTTP/2: enabled")
     
     # Add request and response logging to HTTPX
     def log_request(request):
         logger.debug(f"Making request: {request.method} {request.url}")
-        logger.debug(f"Request headers: {request.headers}")
         return request
 
     def log_response(response):
         logger.debug(f"Received response: {response.status_code} from {response.url}")
-        logger.debug(f"Response headers: {response.headers}")
         return response
 
     http_client.event_hooks = {
@@ -68,11 +71,13 @@ try:
 except Exception as e:
     logger.critical(f"Failed to initialize OpenAI client: {str(e)}")
     logger.critical(f"Traceback: {traceback.format_exc()}")
+    raise
 
+# Routes
 @app.route('/', methods=['GET'])
 def fun():
     logger.info("Root endpoint accessed")
-    return {'message': 'Hello, this is a test endpoint!'}
+    return {'message': 'Image Editor API is running!'}
 
 @app.route('/test-openai', methods=['GET'])
 def test_openai():
@@ -84,7 +89,6 @@ def test_openai():
         
         # Log network information
         try:
-            import socket
             hostname = socket.gethostname()
             ip_address = socket.gethostbyname(hostname)
             logger.info(f"Host information - Hostname: {hostname}, IP: {ip_address}")
@@ -93,7 +97,7 @@ def test_openai():
             openai_host = "api.openai.com"
             logger.info(f"Testing connection to {openai_host}")
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(15)
+            s.settimeout(15)  # Increased to 15 seconds
             result = s.connect_ex((openai_host, 443))
             if result == 0:
                 logger.info(f"Connection to {openai_host}:443 successful")
@@ -117,7 +121,6 @@ def test_openai():
         # Calculate response time
         response_time = time.time() - start_time
         logger.info(f"OpenAI API responded in {response_time:.2f} seconds")
-        logger.debug(f"Response content: {response.choices[0].message.content}")
         
         return jsonify({
             "status": "success",
@@ -125,58 +128,6 @@ def test_openai():
             "response_time_seconds": response_time,
             "model": "gpt-4o-mini"
         })
-    except httpx.ConnectError as e:
-        logger.error(f"Connection error to OpenAI API: {str(e)}")
-        logger.error(f"Connection error details: {traceback.format_exc()}")
-        # Try to get more network diagnostic information
-        try:
-            import subprocess
-            logger.info("Running network diagnostics...")
-            
-            # Ping OpenAI API
-            ping_result = subprocess.run(
-                ["ping", "-c", "4", "api.openai.com"], 
-                capture_output=True, 
-                text=True
-            )
-            logger.info(f"Ping results: {ping_result.stdout}")
-            
-            # Traceroute to OpenAI API
-            traceroute_result = subprocess.run(
-                ["traceroute", "api.openai.com"], 
-                capture_output=True, 
-                text=True
-            )
-            logger.info(f"Traceroute results: {traceroute_result.stdout}")
-        except Exception as diag_err:
-            logger.error(f"Error running network diagnostics: {str(diag_err)}")
-            
-        return jsonify({
-            "status": "error",
-            "error_type": "ConnectError",
-            "error": str(e),
-            "details": "Failed to establish a connection to the OpenAI API. This could be due to network issues, firewall settings, or API endpoint availability."
-        }), 500
-    except httpx.TimeoutException as e:
-        logger.error(f"Timeout error connecting to OpenAI API: {str(e)}")
-        logger.error(f"Timeout error details: {traceback.format_exc()}")
-        return jsonify({
-            "status": "error",
-            "error_type": "TimeoutException",
-            "error": str(e),
-            "details": "The request to the OpenAI API timed out. This could be due to network latency or high server load."
-        }), 500
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP status error from OpenAI API: {str(e)}")
-        logger.error(f"Status code: {e.response.status_code}")
-        logger.error(f"Response body: {e.response.text}")
-        return jsonify({
-            "status": "error",
-            "error_type": "HTTPStatusError",
-            "error": str(e),
-            "status_code": e.response.status_code,
-            "response_body": e.response.text
-        }), 500
     except Exception as e:
         logger.error(f"Unexpected error testing OpenAI API: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
@@ -184,8 +135,7 @@ def test_openai():
         return jsonify({
             "status": "error",
             "error_type": type(e).__name__,
-            "error": str(e),
-            "traceback": traceback.format_exc()
+            "error": str(e)
         }), 500
 
 @app.route('/edit-image', methods=['POST'])
@@ -265,8 +215,7 @@ def edit_image():
         logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             "error": str(e),
-            "error_type": type(e).__name__,
-            "traceback": traceback.format_exc()
+            "error_type": type(e).__name__
         }), 500
 
 def resize_image(img, max_width, max_height):
@@ -313,17 +262,8 @@ def analyze_image(img_base64, instruction):
         
         elapsed_time = time.time() - start_time
         logger.info(f"Image analysis completed in {elapsed_time:.2f} seconds")
-        logger.debug(f"Analysis response: {response.choices[0].message.content}")
         
         return response.choices[0].message.content
-    except httpx.ConnectError as e:
-        logger.error(f"Connection error analyzing image: {str(e)}")
-        logger.error(f"Connection error details: {traceback.format_exc()}")
-        return "Could not analyze the image due to connection error."
-    except httpx.TimeoutException as e:
-        logger.error(f"Timeout error analyzing image: {str(e)}")
-        logger.error(f"Timeout error details: {traceback.format_exc()}")
-        return "Could not analyze the image due to timeout."
     except Exception as e:
         logger.error(f"Error analyzing image: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
@@ -362,17 +302,8 @@ def refine_instruction(original_instruction, image_analysis):
         
         elapsed_time = time.time() - start_time
         logger.info(f"Instruction refinement completed in {elapsed_time:.2f} seconds")
-        logger.debug(f"Refined instruction: {response.choices[0].message.content}")
         
         return response.choices[0].message.content
-    except httpx.ConnectError as e:
-        logger.error(f"Connection error refining instruction: {str(e)}")
-        logger.error(f"Connection error details: {traceback.format_exc()}")
-        return original_instruction
-    except httpx.TimeoutException as e:
-        logger.error(f"Timeout error refining instruction: {str(e)}")
-        logger.error(f"Timeout error details: {traceback.format_exc()}")
-        return original_instruction
     except Exception as e:
         logger.error(f"Error refining instruction: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
@@ -405,43 +336,8 @@ def generate_edited_image(img_base64, refined_instruction):
         
         elapsed_time = time.time() - start_time
         logger.info(f"DALL·E 3 edit completed in {elapsed_time:.2f} seconds")
-        logger.debug(f"Response URL: {response.data[0].url}")
         
         return response.data[0].url
-    except httpx.ConnectError as e:
-        logger.error(f"Connection error generating edited image: {str(e)}")
-        logger.error(f"Connection error details: {traceback.format_exc()}")
-        
-        # Try to get more network diagnostic information
-        try:
-            import subprocess
-            logger.info("Running network diagnostics for DALL·E API...")
-            
-            # Ping OpenAI API
-            ping_result = subprocess.run(
-                ["ping", "-c", "4", "api.openai.com"], 
-                capture_output=True, 
-                text=True
-            )
-            logger.info(f"Ping results: {ping_result.stdout}")
-        except Exception as diag_err:
-            logger.error(f"Error running network diagnostics: {str(diag_err)}")
-            
-        try:
-            logger.info("Attempting fallback to image generation due to connection error")
-            response = client.images.generate(
-                model="dall-e-3",
-                prompt=f"Edit this image according to these instructions: {refined_instruction}. Maintain the original style and composition as much as possible.",
-                n=1,
-                size="1024x1024"
-            )
-            logger.info("Successfully generated image with fallback method")
-            return response.data[0].url
-        except Exception as e2:
-            logger.error(f"Error with fallback generation: {str(e2)}")
-            logger.error(f"Error type: {type(e2).__name__}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            raise Exception(f"Failed to generate edited image: {str(e)} and fallback also failed: {str(e2)}")
     except Exception as e:
         logger.error(f"Error generating edited image with DALL·E 3: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
@@ -460,7 +356,6 @@ def generate_edited_image(img_base64, refined_instruction):
             
             elapsed_time = time.time() - start_time
             logger.info(f"Fallback generation completed in {elapsed_time:.2f} seconds")
-            logger.debug(f"Fallback response URL: {response.data[0].url}")
             
             return response.data[0].url
         except Exception as e2:
@@ -475,36 +370,24 @@ def download_image(url):
     try:
         start_time = time.time()
         
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=60)  # Increased timeout to 60 seconds
         
         elapsed_time = time.time() - start_time
         logger.info(f"Image download completed in {elapsed_time:.2f} seconds")
-        logger.debug(f"Response status code: {response.status_code}")
-        logger.debug(f"Response headers: {response.headers}")
         
         if response.status_code == 200:
             logger.info(f"Successfully downloaded image, size: {len(response.content)} bytes")
             return response.content
         else:
             logger.error(f"Failed to download image: HTTP {response.status_code}")
-            logger.error(f"Response content: {response.text[:500]}")
             raise Exception(f"Failed to download image: HTTP {response.status_code}")
-    except requests.exceptions.ConnectionError as e:
-        logger.error(f"Connection error downloading image: {str(e)}")
-        logger.error(f"Connection error details: {traceback.format_exc()}")
-        raise Exception(f"Connection error downloading image: {str(e)}")
-    except requests.exceptions.Timeout as e:
-        logger.error(f"Timeout downloading image: {str(e)}")
-        logger.error(f"Timeout error details: {traceback.format_exc()}")
-        raise Exception(f"Timeout downloading image: {str(e)}")
     except Exception as e:
         logger.error(f"Error downloading image: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise Exception(f"Failed to download image: {str(e)}")
 
+# For local testing (not used in production)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    logger.info(f"Starting Flask server on port {port}")
-    logger.info(f"Debug mode: {True}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port)
