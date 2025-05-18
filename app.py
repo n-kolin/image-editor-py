@@ -6,7 +6,7 @@ import traceback
 import sys
 import socket
 import json
-from flask import Flask, request, send_file, jsonify, Blueprint, Response
+from flask import Flask, request, send_file, jsonify
 from PIL import Image
 import requests
 import httpx
@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Maximum length for DALL-E 2 prompts
+MAX_DALLE_PROMPT_LENGTH = 900
 
 # Log environment setup
 api_key = os.environ.get("OPENAI_API_KEY")
@@ -110,7 +113,7 @@ def test_openai():
         # Make a simple text request to OpenAI
         logger.debug("Creating chat completion with gpt-4o-mini")
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # Changed to gpt-4o-mini as requested
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "What is the capital of France?"}
@@ -136,100 +139,6 @@ def test_openai():
             "status": "error",
             "error_type": type(e).__name__,
             "error": str(e)
-        }), 500
-
-@app.route('/edit-image', methods=['POST'])
-def edit_image():
-    logger.info("edit-image endpoint accessed")
-    try:
-        # Check if the post request has the file part
-        if 'image' not in request.files:
-            logger.warning("No image provided in request")
-            return jsonify({"error": "No image provided"}), 400
-        
-        file = request.files['image']
-        instruction = request.form.get('instruction', '')
-        max_width = int(request.form.get('max_width', 1024))
-        max_height = int(request.form.get('max_height', 1024))
-        
-        logger.info(f"Received image: {file.filename}, instruction: {instruction}")
-        logger.info(f"Max dimensions: {max_width}x{max_height}")
-        
-        if file.filename == '':
-            logger.warning("Empty filename provided")
-            return jsonify({"error": "No image selected"}), 400
-        
-        # Read and process the uploaded image
-        logger.debug("Reading uploaded image")
-        image_content = file.read()
-        img = Image.open(io.BytesIO(image_content))
-        logger.info(f"Original image dimensions: {img.size}, format: {img.format}")
-        
-        # Resize image if needed (DALL·E has size limitations)
-        logger.debug("Resizing image if needed")
-        img = resize_image(img, max_width, max_height)
-        logger.info(f"Processed image dimensions: {img.size}")
-        
-        # Extract image features for better reference
-        img_features = extract_image_features(img)
-        logger.info(f"Extracted image features: {img_features}")
-        
-        # Step 1: Refine the user instruction with reference to the image
-        logger.info("Step 1: Refining instruction with image reference")
-        refined_instruction = refine_instruction_with_image_reference(instruction, img_features)
-        logger.info(f"Refined instruction: {refined_instruction}")
-        
-        # Step 2: Generate a new image based on the instruction
-        logger.info("Step 2: Generating image based on instruction")
-        
-        # Try to use the image as a reference for text-to-image generation
-        try:
-            # Generate image using DALL-E 2
-            edited_image_url = generate_image_with_dalle(refined_instruction)
-            logger.info(f"Generated image URL: {edited_image_url[:50]}...")
-            
-            # Download and return the edited image
-            logger.info("Step 3: Downloading image")
-            edited_image_data = download_image(edited_image_url)
-            logger.info(f"Downloaded image size: {len(edited_image_data)} bytes")
-            
-            # Create a BytesIO object from the image data
-            result_image = io.BytesIO(edited_image_data)
-            result_image.seek(0)
-            
-            logger.info("Returning edited image to client")
-            return send_file(
-                result_image,
-                mimetype='image/png',
-                as_attachment=True,
-                download_name='edited_image.png'
-            )
-        except Exception as e:
-            logger.error(f"Error generating image: {str(e)}")
-            logger.error(f"Error type: {type(e).__name__}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            
-            # Create a placeholder image with text
-            logger.info("Creating placeholder image with error message")
-            placeholder_img = create_placeholder_image(instruction, str(e))
-            placeholder_buffer = io.BytesIO()
-            placeholder_img.save(placeholder_buffer, format="PNG")
-            placeholder_buffer.seek(0)
-            
-            return send_file(
-                placeholder_buffer,
-                mimetype='image/png',
-                as_attachment=True,
-                download_name='error_image.png'
-            )
-    
-    except Exception as e:
-        logger.error(f"Error processing image: {str(e)}")
-        logger.error(f"Error type: {type(e).__name__}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return jsonify({
-            "error": str(e),
-            "error_type": type(e).__name__
         }), 500
 
 @app.route('/edit-image-url', methods=['POST'])
@@ -277,22 +186,26 @@ def edit_image_url():
             img = resize_image(img, max_width, max_height)
             logger.info(f"Processed image dimensions: {img.size}")
             
-            # Step 1: Refine the user instruction
-            logger.info("Step 1: Refining instruction")
-            refined_instruction = refine_instruction(instruction)
-            logger.info(f"Refined instruction: {refined_instruction}")
+            # Step 1: Analyze the image with GPT-4o-mini
+            logger.info("Step 1: Analyzing image with GPT-4o-mini")
+            img_features = extract_image_features(img)
+            image_analysis = analyze_image_with_gpt(img_features)
+            logger.info(f"Image analysis: {image_analysis[:100]}...")
             
-            # Step 2: Edit the image based on the instruction
-            logger.info("Step 2: Editing image based on instruction")
+            # Step 2: Refine the user instruction with GPT-4o-mini
+            logger.info("Step 2: Refining instruction with GPT-4o-mini")
+            refined_instruction = refine_instruction(instruction, image_analysis)
+            logger.info(f"Refined instruction: {refined_instruction[:100]}...")
             
-            # Convert image to proper format for DALL-E 2
+            # Step 3: Edit the image based on the instruction using DALL-E 2
+            logger.info("Step 3: Editing image with DALL-E 2")
             edited_image_data, success = edit_image_with_dalle(img, refined_instruction)
             
             if not success:
                 logger.warning("Image editing failed, returning error")
                 return jsonify({
                     "status": "error",
-                    "message": "Failed to edit image with OpenAI",
+                    "message": "Failed to edit image with DALL-E 2",
                     "refined_instruction": refined_instruction
                 }), 400
             
@@ -302,7 +215,8 @@ def edit_image_url():
             # Create a multipart response with JSON and image
             response_data = {
                 "status": "success",
-                "refined_instruction": refined_instruction
+                "refined_instruction": refined_instruction,
+                "image_analysis": image_analysis
             }
             
             # Return the edited image and the refined instructions
@@ -414,11 +328,10 @@ def extract_image_features(img):
         "tone": tone
     }
 
-def refine_instruction_with_image_reference(instruction, img_features):
-    """Refine the user's instruction with reference to the image features"""
-    logger.info("Refining instruction with image reference")
+def analyze_image_with_gpt(img_features):
+    """Analyze image features using GPT-4o-mini"""
+    logger.info("Analyzing image with GPT-4o-mini")
     try:
-        logger.debug(f"Making API call to refine instruction: {instruction}")
         start_time = time.time()
         
         # Create a description of the image
@@ -430,63 +343,55 @@ def refine_instruction_with_image_reference(instruction, img_features):
         )
         
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # Using gpt-4o-mini as requested
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert at creating precise image editing instructions. Your task is to convert user instructions into detailed prompts that reference the original image."
+                    "content": "You are an expert image analyst. Describe what might be in this image based on the technical data provided. Be specific about possible objects, their positions, and the overall scene composition. Keep your analysis under 300 characters."
                 },
                 {
                     "role": "user",
-                    "content": f"""
-                    Original image description: {img_description}
-                    
-                    User wants to: "{instruction}"
-                    
-                    Create a detailed instruction for generating a new image that looks like the original image but with the requested changes.
-                    Include details about the composition, style, and elements that should be preserved from the original image.
-                    The instruction should be specific enough to generate an image that appears to be an edited version of the original.
-                    """
+                    "content": f"Based on this technical data, describe what might be in this image: {img_description}"
                 }
             ],
-            max_tokens=500
+            max_tokens=150  # Limiting token count for concise analysis
         )
         
         elapsed_time = time.time() - start_time
-        logger.info(f"Instruction refinement completed in {elapsed_time:.2f} seconds")
+        logger.info(f"Image analysis completed in {elapsed_time:.2f} seconds")
         
         return response.choices[0].message.content
     except Exception as e:
-        logger.error(f"Error refining instruction: {str(e)}")
+        logger.error(f"Error analyzing image: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return f"{instruction} (maintaining the original image's composition and style)"
-# Only modifying the refine_instruction function to limit instruction length
-def refine_instruction(original_instruction):
-    """Refine the user's instruction"""
-    logger.info("Refining instruction")
+        return f"Image analysis failed. Using basic features: {img_features['width']}x{img_features['height']}, {img_features['tone']} tone."
+
+def refine_instruction(original_instruction, image_analysis):
+    """Refine the user's instruction based on image analysis"""
+    logger.info("Refining instruction with image analysis")
     try:
-        logger.debug(f"Making API call to refine instruction: {original_instruction}")
         start_time = time.time()
         
-        # Maximum length for DALL-E 2 prompts
-        MAX_DALLE_PROMPT_LENGTH = 1000
-        
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # Using gpt-4o-mini as requested
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert at creating precise image editing instructions. Create CONCISE instructions (under 900 characters) that focus on the specific changes needed. Be direct and brief while maintaining clarity."
+                    "content": "You are an expert at creating precise image editing instructions. Create CONCISE instructions (under 900 characters) that focus on the specific changes needed. Be direct and brief while maintaining clarity. Specify exact positions and colors when relevant."
                 },
                 {
                     "role": "user",
                     "content": f"""
-                    Original user instruction: "{original_instruction}"
+                    Image analysis: {image_analysis}
                     
-                    Create a concise, specific instruction for image editing that will achieve what the user wants.
+                    User wants to: "{original_instruction}"
+                    
+                    Create a concise, specific instruction for DALL-E 2 to edit this image.
                     Your response MUST be under 900 characters total.
                     Focus only on the essential editing steps.
+                    For color changes, specify the exact colors (e.g., 'change red car to forest green').
+                    For object modifications, be precise about what to modify and how.
                     """
                 }
             ],
@@ -508,40 +413,21 @@ def refine_instruction(original_instruction):
         logger.error(f"Error refining instruction: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return original_instruction[:1000]  # Ensure original instruction is also truncated if needed
-
-def generate_image_with_dalle(prompt):
-    """Generate image using DALL-E 2"""
-    logger.info("Generating image with DALL-E 2")
-    try:
-        # Try with DALL-E 2 for image generation
-        logger.info("Attempting to generate image with DALL-E 2")
-        start_time = time.time()
         
-        response = client.images.generate(
-            model="dall-e-2",
-            prompt=prompt,
-            n=1,
-            size="1024x1024"
-        )
-        
-        elapsed_time = time.time() - start_time
-        logger.info(f"DALL·E 2 generation completed in {elapsed_time:.2f} seconds")
-        
-        return response.data[0].url
-    except Exception as e:
-        logger.error(f"Error generating image with DALL·E 2: {str(e)}")
-        logger.error(f"Error type: {type(e).__name__}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        
-        # Use a placeholder image service as fallback
-        logger.info("Using placeholder image service as fallback")
-        return f"https://placehold.co/1024x1024/png?text={prompt.replace(' ', '+')[:100]}"
+        # Ensure the original instruction is also truncated if needed
+        if len(original_instruction) > MAX_DALLE_PROMPT_LENGTH:
+            return original_instruction[:MAX_DALLE_PROMPT_LENGTH]
+        return original_instruction
 
 def edit_image_with_dalle(img, prompt):
     """Edit image using DALL-E 2"""
     logger.info("Editing image with DALL-E 2")
     try:
+        # Ensure prompt is within valid length
+        if len(prompt) > MAX_DALLE_PROMPT_LENGTH:
+            logger.warning(f"Prompt too long ({len(prompt)} chars), truncating to {MAX_DALLE_PROMPT_LENGTH} chars")
+            prompt = prompt[:MAX_DALLE_PROMPT_LENGTH]
+        
         # Create a temporary file with .png extension
         import tempfile
         temp_path = tempfile.mktemp(suffix=".png")
@@ -604,59 +490,6 @@ def edit_image_with_dalle(img, prompt):
         
         # No fallback, just return the error
         return None, False
-
-def download_image(url):
-    """Download image from URL"""
-    logger.info(f"Downloading image from URL: {url[:50]}...")
-    try:
-        start_time = time.time()
-        
-        response = requests.get(url, timeout=60)
-        
-        elapsed_time = time.time() - start_time
-        logger.info(f"Image download completed in {elapsed_time:.2f} seconds")
-        
-        if response.status_code == 200:
-            logger.info(f"Successfully downloaded image, size: {len(response.content)} bytes")
-            return response.content
-        else:
-            logger.error(f"Failed to download image: HTTP {response.status_code}")
-            raise Exception(f"Failed to download image: HTTP {response.status_code}")
-    except Exception as e:
-        logger.error(f"Error downloading image: {str(e)}")
-        logger.error(f"Error type: {type(e).__name__}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        
-        # Create a placeholder image if download fails
-        logger.info("Creating placeholder image due to download failure")
-        img = Image.new('RGB', (512, 512), color=(73, 109, 137))
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        return buffered.getvalue()
-
-def create_placeholder_image(instruction, error_message):
-    """Create a placeholder image with text"""
-    logger.info("Creating placeholder image")
-    
-    # Create a new image with a gradient background
-    width, height = 800, 600
-    image = Image.new('RGB', (width, height), color=(73, 109, 137))
-    
-    # Draw text on the image
-    from PIL import ImageDraw, ImageFont
-    draw = ImageDraw.Draw(image)
-    
-    # Add instruction text
-    draw.text((20, 20), f"Instruction: {instruction[:100]}", fill=(255, 255, 255))
-    
-    # Add error message
-    draw.text((20, 60), f"Error: {error_message[:200]}", fill=(255, 200, 200))
-    
-    # Add helpful message
-    draw.text((20, 120), "Please check your OpenAI API key permissions", fill=(200, 255, 200))
-    draw.text((20, 160), "and ensure you have access to image generation", fill=(200, 255, 200))
-    
-    return image
 
 # For local testing (not used in production)
 if __name__ == "__main__":
