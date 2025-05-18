@@ -196,7 +196,7 @@ def edit_image_url():
             logger.info("Step 1: Analyzing image with GPT-4o-mini")
             img_features = extract_image_features(img)
             logger.warning(f"Extracted image features: {img_features}")
-            image_analysis = analyze_image_with_gpt(img_features)
+            image_analysis = analyze_image_with_gpt(img)
             logger.warning(f"Image analysis result: {image_analysis}...")
             logger.info(f"Image analysis: {image_analysis[:100]}...")
             
@@ -354,13 +354,19 @@ def analyze_image_with_gpt(img_features):
             model="gpt-4o-mini",
             messages=[
                 {
-                    "role": "system",
-                    "content": "You are an expert image analyst. Describe what might be in this image based on the technical data provided. Be specific about possible objects, their positions, and the overall scene composition. Keep your analysis under 300 characters."
-                },
-                {
-                    "role": "user",
-                    "content": f"Based on this technical data, describe what might be in this image: {img_description}"
-                }
+                #     "role": "system",
+                #     "content": "You are an expert image analyst. Describe what might be in this image based on the technical data provided. Be specific about possible objects, their positions, and the overall scene composition. Keep your analysis under 300 characters."
+                # },
+                # {
+                #     "role": "user",
+                #     "content": f"Based on this technical data, describe what might be in this image: {img_description}"
+                # }"role": "system",
+"content": "You are an expert in image analysis. Describe what is in the image. Be specific about objects, their location, and the overall composition of the scene. Keep your analysis to less than 300 characters."
+},
+{
+"role": "user",
+"content": f"This is the image address Describe what is in this image: {img_description}"
+}
             ],
             max_tokens=150  # Limiting token count for concise analysis
         )
