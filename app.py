@@ -420,71 +420,54 @@ def refine_instruction(original_instruction, image_analysis):
         return original_instruction
 
 def edit_image_with_dalle(img, prompt):
-    """Edit image using DALL-E 2"""
-    logger.info("Editing image with DALL-E 2")
+    """Generate a new image based on the original image and prompt"""
+    logger.info("Generating image with DALL-E 2")
     try:
         # Ensure prompt is within valid length
         if len(prompt) > MAX_DALLE_PROMPT_LENGTH:
             logger.warning(f"Prompt too long ({len(prompt)} chars), truncating to {MAX_DALLE_PROMPT_LENGTH} chars")
             prompt = prompt[:MAX_DALLE_PROMPT_LENGTH]
         
-        # Create a temporary file with .png extension
-        import tempfile
-        temp_path = tempfile.mktemp(suffix=".png")
-        
-        # Convert to RGBA if not already and save to the temporary file
-        if img.mode != 'RGBA':
-            logger.info(f"Converting image from {img.mode} to RGBA")
-            img = img.convert('RGBA')
-        
-        img.save(temp_path, format="PNG")
-        logger.info(f"Saved image to temporary file: {temp_path}")
-        
-        # Create a mask image (transparent PNG with the same dimensions)
+        # Extract image features to enhance the prompt
+        img_features = extract_image_features(img)
         width, height = img.size
-        mask = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        mask_path = temp_path.replace(".png", "_mask.png")
-        mask.save(mask_path, format="PNG")
-        logger.info(f"Created mask image at {mask_path}")
         
-        # Try to edit the image using OpenAI API
-        logger.info("Calling OpenAI images.edit API")
+        # Create an enhanced prompt that describes both the original image and the desired changes
+        enhanced_prompt = f"Create a professional product photo of {prompt}. The image should be {width}x{height} with a clean background."
+        
+        logger.info(f"Enhanced prompt: {enhanced_prompt[:100]}...")
+        
+        # Generate a new image using DALL-E 2
+        logger.info("Calling OpenAI images.generate API")
         start_time = time.time()
         
-        with open(temp_path, "rb") as image_file, open(mask_path, "rb") as mask_file:
-            response = client.images.generate(
-                image=image_file,
-                mask=mask_file,
-                prompt=prompt,
-                n=1,
-                size="1024x1024"
-            )
+        response = client.images.generate(
+            model="dall-e-2",
+            prompt=enhanced_prompt,
+            n=1,
+            size="1024x1024"
+        )
         
         elapsed_time = time.time() - start_time
-        logger.info(f"DALL·E 2 edit completed in {elapsed_time:.2f} seconds")
+        logger.info(f"DALL·E 2 generation completed in {elapsed_time:.2f} seconds")
         
-        # Get the URL of the edited image
-        edited_image_url = response.data[0].url
-        logger.info(f"Edited image URL: {edited_image_url[:50]}...")
+        # Get the URL of the generated image
+        generated_image_url = response.data[0].url
+        logger.info(f"Generated image URL: {generated_image_url[:50]}...")
         
-        # Download the edited image
-        logger.info("Downloading edited image")
-        edited_image_response = requests.get(edited_image_url, timeout=30)
-        if edited_image_response.status_code != 200:
-            logger.error(f"Failed to download edited image: HTTP {edited_image_response.status_code}")
-            raise Exception(f"Failed to download edited image: HTTP {edited_image_response.status_code}")
+        # Download the generated image
+        logger.info("Downloading generated image")
+        generated_image_response = requests.get(generated_image_url, timeout=30)
+        if generated_image_response.status_code != 200:
+            logger.error(f"Failed to download image: HTTP {generated_image_response.status_code}")
+            raise Exception(f"Failed to download image: HTTP {generated_image_response.status_code}")
         
-        edited_image_data = edited_image_response.content
-        logger.info(f"Downloaded edited image, size: {len(edited_image_data)} bytes")
+        generated_image_data = generated_image_response.content
+        logger.info(f"Downloaded image, size: {len(generated_image_data)} bytes")
         
-        # Clean up temporary files
-        import os
-        os.unlink(temp_path)
-        os.unlink(mask_path)
-        
-        return edited_image_data, True
+        return generated_image_data, True
     except Exception as e:
-        logger.error(f"Error editing image with DALL·E 2: {str(e)}")
+        logger.error(f"Error with DALL·E 2: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         
