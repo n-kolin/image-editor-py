@@ -461,7 +461,7 @@ def refine_instruction_with_image_reference(instruction, img_features):
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         return f"{instruction} (maintaining the original image's composition and style)"
-
+# Only modifying the refine_instruction function to limit instruction length
 def refine_instruction(original_instruction):
     """Refine the user's instruction"""
     logger.info("Refining instruction")
@@ -469,36 +469,46 @@ def refine_instruction(original_instruction):
         logger.debug(f"Making API call to refine instruction: {original_instruction}")
         start_time = time.time()
         
+        # Maximum length for DALL-E 2 prompts
+        MAX_DALLE_PROMPT_LENGTH = 1000
+        
         response = client.chat.completions.create(
             model="gpt-4o-mini",  # Using gpt-4o-mini as requested
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert at creating precise image editing instructions. Your task is to convert user instructions into detailed, specific prompts that will produce the best results."
+                    "content": "You are an expert at creating precise image editing instructions. Create CONCISE instructions (under 900 characters) that focus on the specific changes needed. Be direct and brief while maintaining clarity."
                 },
                 {
                     "role": "user",
                     "content": f"""
                     Original user instruction: "{original_instruction}"
                     
-                    Create a detailed, specific instruction for image editing that will achieve what the user wants.
-                    The instruction should be precise about what objects to modify, their positions, colors, and any other relevant details.
-                    Focus only on the editing task, don't include explanations or notes.
+                    Create a concise, specific instruction for image editing that will achieve what the user wants.
+                    Your response MUST be under 900 characters total.
+                    Focus only on the essential editing steps.
                     """
                 }
             ],
-            max_tokens=500
+            max_tokens=300  # Limiting token count to ensure shorter response
         )
+        
+        refined_instruction = response.choices[0].message.content
+        
+        # Check if the refined instruction is too long and truncate if necessary
+        if len(refined_instruction) > MAX_DALLE_PROMPT_LENGTH:
+            logger.warning(f"Refined instruction too long ({len(refined_instruction)} chars), truncating to {MAX_DALLE_PROMPT_LENGTH} chars")
+            refined_instruction = refined_instruction[:MAX_DALLE_PROMPT_LENGTH]
         
         elapsed_time = time.time() - start_time
         logger.info(f"Instruction refinement completed in {elapsed_time:.2f} seconds")
         
-        return response.choices[0].message.content
+        return refined_instruction
     except Exception as e:
         logger.error(f"Error refining instruction: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return original_instruction
+        return original_instruction[:1000]  # Ensure original instruction is also truncated if needed
 
 def generate_image_with_dalle(prompt):
     """Generate image using DALL-E 2"""
