@@ -390,26 +390,40 @@ def download_image(url):
         img.save(buffered, format="PNG")
         return buffered.getvalue()
 
-
 @app.route('/test-image-edit', methods=['GET'])
 def test_image_edit():
     """Test if the account has image editing capabilities"""
     logger.info("Testing image edit capabilities")
     try:
-        # Create a simple test image
+        # Create a simple test image - pure white PNG with transparency
         test_img = Image.new('RGBA', (512, 512), (255, 255, 255, 0))
+        
+        # Save to BytesIO with correct format
         buffer = io.BytesIO()
         test_img.save(buffer, format="PNG")
         buffer.seek(0)
         
-        # Try to use the images.edit endpoint
-        response = client.images.edit(
-            model="dall-e-2",
-            image=buffer,
-            prompt="Add a blue circle in the center",
-            n=1,
-            size="1024x1024"
-        )
+        # Create a temporary file with .png extension
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+            temp_file.write(buffer.getvalue())
+            temp_path = temp_file.name
+        
+        logger.info(f"Created temporary PNG file at {temp_path}")
+        
+        # Open the file in binary mode with correct MIME type
+        with open(temp_path, "rb") as png_file:
+            # Try to use the images.edit endpoint
+            response = client.images.edit(
+                image=png_file,  # Pass the file object directly
+                prompt="Add a blue circle in the center",
+                n=1,
+                size="1024x1024"
+            )
+        
+        # Clean up the temporary file
+        import os
+        os.unlink(temp_path)
         
         return jsonify({
             "status": "success",
@@ -417,13 +431,16 @@ def test_image_edit():
             "url": response.data[0].url
         })
     except Exception as e:
+        logger.error(f"Error testing image edit: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
         return jsonify({
             "status": "error",
             "message": "Your account does not have image editing capabilities or there was an error.",
             "error": str(e),
             "error_type": type(e).__name__
-        })
-    
+        })  
 
 # For local testing (not used in production)
 if __name__ == "__main__":
