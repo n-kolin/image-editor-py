@@ -197,12 +197,12 @@ def edit_image():
             result_image.seek(0)
             
             logger.info("Returning edited image to client")
-            return send_file(
+            return {'img':send_file(
                 result_image,
                 mimetype='image/png',
                 as_attachment=True,
                 download_name='edited_image.png'
-            )
+            ),'instructions':refine_instruction}
         except Exception as e:
             logger.error(f"Error generating image: {str(e)}")
             logger.error(f"Error type: {type(e).__name__}")
