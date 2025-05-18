@@ -452,7 +452,7 @@ def edit_image_with_dalle(img, prompt):
         start_time = time.time()
         
         with open(temp_path, "rb") as image_file, open(mask_path, "rb") as mask_file:
-            response = client.images.edit(
+            response = client.images.generate(
                 image=image_file,
                 mask=mask_file,
                 prompt=prompt,
