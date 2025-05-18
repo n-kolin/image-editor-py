@@ -5,8 +5,8 @@ import time
 import traceback
 import sys
 import socket
-import subprocess
-from flask import Flask, request, send_file, jsonify, Blueprint
+import json
+from flask import Flask, request, send_file, jsonify, Blueprint, Response
 from PIL import Image
 import requests
 import httpx
@@ -110,7 +110,7 @@ def test_openai():
         # Make a simple text request to OpenAI
         logger.debug("Creating chat completion with gpt-4o-mini")
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o-mini",  # Changed to gpt-4o-mini as requested
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "What is the capital of France?"}
@@ -170,9 +170,13 @@ def edit_image():
         img = resize_image(img, max_width, max_height)
         logger.info(f"Processed image dimensions: {img.size}")
         
-        # Step 1: Refine the user instruction
-        logger.info("Step 1: Refining instruction")
-        refined_instruction = refine_instruction(instruction)
+        # Extract image features for better reference
+        img_features = extract_image_features(img)
+        logger.info(f"Extracted image features: {img_features}")
+        
+        # Step 1: Refine the user instruction with reference to the image
+        logger.info("Step 1: Refining instruction with image reference")
+        refined_instruction = refine_instruction_with_image_reference(instruction, img_features)
         logger.info(f"Refined instruction: {refined_instruction}")
         
         # Step 2: Generate a new image based on the instruction
@@ -180,11 +184,8 @@ def edit_image():
         
         # Try to use the image as a reference for text-to-image generation
         try:
-            # Convert image to proper format for DALL-E 2
-            img_png = convert_to_png(img)
-            
             # Generate image using DALL-E 2
-            edited_image_url = generate_image_with_dalle(img_png, refined_instruction)
+            edited_image_url = generate_image_with_dalle(refined_instruction)
             logger.info(f"Generated image URL: {edited_image_url[:50]}...")
             
             # Download and return the edited image
@@ -197,12 +198,12 @@ def edit_image():
             result_image.seek(0)
             
             logger.info("Returning edited image to client")
-            return {'img':send_file(
+            return send_file(
                 result_image,
                 mimetype='image/png',
                 as_attachment=True,
                 download_name='edited_image.png'
-            ),'instructions':refine_instruction}
+            )
         except Exception as e:
             logger.error(f"Error generating image: {str(e)}")
             logger.error(f"Error type: {type(e).__name__}")
@@ -231,6 +232,123 @@ def edit_image():
             "error_type": type(e).__name__
         }), 500
 
+@app.route('/edit-image-url', methods=['POST'])
+def edit_image_url():
+    """Edit an image from a URL"""
+    logger.info("edit-image-url endpoint accessed")
+    try:
+        # Get the image URL and instruction from the request
+        data = request.json
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        image_url = data.get('image_url')
+        instruction = data.get('instruction', '')
+        max_width = int(data.get('max_width', 1024))
+        max_height = int(data.get('max_height', 1024))
+        
+        if not image_url:
+            logger.warning("No image URL provided")
+            return jsonify({"error": "No image URL provided"}), 400
+        
+        logger.info(f"Received image URL: {image_url}, instruction: {instruction}")
+        logger.info(f"Max dimensions: {max_width}x{max_height}")
+        
+        # Download the image from the URL
+        logger.info(f"Downloading image from URL: {image_url}")
+        try:
+            response = requests.get(image_url, timeout=30)
+            if response.status_code != 200:
+                logger.error(f"Failed to download image: HTTP {response.status_code}")
+                return jsonify({"error": f"Failed to download image: HTTP {response.status_code}"}), 400
+            
+            image_content = response.content
+            logger.info(f"Downloaded image, size: {len(image_content)} bytes")
+        except Exception as download_err:
+            logger.error(f"Error downloading image: {str(download_err)}")
+            return jsonify({"error": f"Error downloading image: {str(download_err)}"}), 400
+        
+        # Process the downloaded image
+        try:
+            img = Image.open(io.BytesIO(image_content))
+            logger.info(f"Original image dimensions: {img.size}, format: {img.format}")
+            
+            # Resize image if needed (DALL·E has size limitations)
+            img = resize_image(img, max_width, max_height)
+            logger.info(f"Processed image dimensions: {img.size}")
+            
+            # Step 1: Refine the user instruction
+            logger.info("Step 1: Refining instruction")
+            refined_instruction = refine_instruction(instruction)
+            logger.info(f"Refined instruction: {refined_instruction}")
+            
+            # Step 2: Edit the image based on the instruction
+            logger.info("Step 2: Editing image based on instruction")
+            
+            # Convert image to proper format for DALL-E 2
+            edited_image_data, success = edit_image_with_dalle(img, refined_instruction)
+            
+            if not success:
+                logger.warning("Image editing failed, returning error")
+                return jsonify({
+                    "status": "error",
+                    "message": "Failed to edit image with OpenAI",
+                    "refined_instruction": refined_instruction
+                }), 400
+            
+            # Create a response with both the image and the refined instructions
+            logger.info("Creating response with image and refined instructions")
+            
+            # Create a multipart response with JSON and image
+            response_data = {
+                "status": "success",
+                "refined_instruction": refined_instruction
+            }
+            
+            # Return the edited image and the refined instructions
+            return send_file_with_json(
+                edited_image_data,
+                mimetype='image/png',
+                as_attachment=True,
+                download_name='edited_image.png',
+                json_data=response_data
+            )
+            
+        except Exception as process_err:
+            logger.error(f"Error processing image: {str(process_err)}")
+            logger.error(f"Error type: {type(process_err).__name__}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return jsonify({
+                "status": "error",
+                "error": str(process_err),
+                "error_type": type(process_err).__name__,
+                "refined_instruction": refined_instruction if 'refined_instruction' in locals() else None
+            }), 500
+    
+    except Exception as e:
+        logger.error(f"Error in edit-image-url endpoint: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }), 500
+
+def send_file_with_json(file_data, mimetype, as_attachment, download_name, json_data):
+    """Send a file with JSON data in the response headers"""
+    response = send_file(
+        io.BytesIO(file_data),
+        mimetype=mimetype,
+        as_attachment=as_attachment,
+        download_name=download_name
+    )
+    
+    # Add the JSON data as a custom header
+    response.headers['X-Response-Data'] = json.dumps(json_data)
+    
+    return response
+
 def resize_image(img, max_width, max_height):
     """Resize image while maintaining aspect ratio"""
     width, height = img.size
@@ -248,28 +366,101 @@ def resize_image(img, max_width, max_height):
     
     return img
 
-def convert_to_png(img):
-    """Convert image to PNG format with transparency"""
-    logger.info("Converting image to PNG format")
+def extract_image_features(img):
+    """Extract basic features from the image to use as reference"""
+    width, height = img.size
+    aspect_ratio = width / height
     
-    # Create a new RGBA image with white background
-    if img.mode != 'RGBA':
-        # Convert to RGBA if not already
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
+    # Resize for faster processing
+    img_small = img.resize((100, 100))
+    if img_small.mode != 'RGB':
+        img_small = img_small.convert('RGB')
+    
+    # Extract dominant colors
+    colors = []
+    try:
+        # Get pixel data
+        pixels = list(img_small.getdata())
+        # Count colors
+        color_count = {}
+        for pixel in pixels:
+            if pixel in color_count:
+                color_count[pixel] += 1
+            else:
+                color_count[pixel] = 1
         
-        # Create a new image with alpha channel
-        png_img = Image.new('RGBA', img.size, (255, 255, 255, 255))
-        png_img.paste(img, (0, 0))
-    else:
-        png_img = img
+        # Get top 5 colors
+        sorted_colors = sorted(color_count.items(), key=lambda x: x[1], reverse=True)
+        for i in range(min(5, len(sorted_colors))):
+            r, g, b = sorted_colors[i][0]
+            colors.append(f"rgb({r},{g},{b})")
+    except Exception as e:
+        logger.error(f"Error extracting colors: {str(e)}")
+        colors = ["unknown"]
     
-    # Save to BytesIO
-    buffer = io.BytesIO()
-    png_img.save(buffer, format="PNG")
-    buffer.seek(0)
+    # Detect if image is mostly dark or light
+    try:
+        brightness_sum = sum(sum(p) for p in pixels)
+        avg_brightness = brightness_sum / (len(pixels) * 3)  # 3 channels
+        tone = "dark" if avg_brightness < 128 else "light"
+    except:
+        tone = "unknown"
     
-    return buffer
+    return {
+        "width": width,
+        "height": height,
+        "aspect_ratio": aspect_ratio,
+        "dominant_colors": colors,
+        "tone": tone
+    }
+
+def refine_instruction_with_image_reference(instruction, img_features):
+    """Refine the user's instruction with reference to the image features"""
+    logger.info("Refining instruction with image reference")
+    try:
+        logger.debug(f"Making API call to refine instruction: {instruction}")
+        start_time = time.time()
+        
+        # Create a description of the image
+        img_description = (
+            f"An image of size {img_features['width']}x{img_features['height']} "
+            f"with aspect ratio {img_features['aspect_ratio']:.2f}, "
+            f"having a {img_features['tone']} overall tone "
+            f"and dominant colors: {', '.join(img_features['dominant_colors'][:3])}"
+        )
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Using gpt-4o-mini as requested
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert at creating precise image editing instructions. Your task is to convert user instructions into detailed prompts that reference the original image."
+                },
+                {
+                    "role": "user",
+                    "content": f"""
+                    Original image description: {img_description}
+                    
+                    User wants to: "{instruction}"
+                    
+                    Create a detailed instruction for generating a new image that looks like the original image but with the requested changes.
+                    Include details about the composition, style, and elements that should be preserved from the original image.
+                    The instruction should be specific enough to generate an image that appears to be an edited version of the original.
+                    """
+                }
+            ],
+            max_tokens=500
+        )
+        
+        elapsed_time = time.time() - start_time
+        logger.info(f"Instruction refinement completed in {elapsed_time:.2f} seconds")
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Error refining instruction: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return f"{instruction} (maintaining the original image's composition and style)"
 
 def refine_instruction(original_instruction):
     """Refine the user's instruction"""
@@ -279,7 +470,7 @@ def refine_instruction(original_instruction):
         start_time = time.time()
         
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o-mini",  # Using gpt-4o-mini as requested
             messages=[
                 {
                     "role": "system",
@@ -309,18 +500,17 @@ def refine_instruction(original_instruction):
         logger.error(f"Traceback: {traceback.format_exc()}")
         return original_instruction
 
-def generate_image_with_dalle(img_buffer, prompt):
+def generate_image_with_dalle(prompt):
     """Generate image using DALL-E 2"""
     logger.info("Generating image with DALL-E 2")
     try:
-        # Try with DALL-E 2 for image generation (not edit)
+        # Try with DALL-E 2 for image generation
         logger.info("Attempting to generate image with DALL-E 2")
         start_time = time.time()
         
-        response = client.images.edit(
+        response = client.images.generate(
             model="dall-e-2",
-            image=img_buffer,
-            prompt=f"{prompt}",
+            prompt=prompt,
             n=1,
             size="1024x1024"
         )
@@ -338,29 +528,72 @@ def generate_image_with_dalle(img_buffer, prompt):
         logger.info("Using placeholder image service as fallback")
         return f"https://placehold.co/1024x1024/png?text={prompt.replace(' ', '+')[:100]}"
 
-def create_placeholder_image(instruction, error_message):
-    """Create a placeholder image with text"""
-    logger.info("Creating placeholder image")
-    
-    # Create a new image with a gradient background
-    width, height = 800, 600
-    image = Image.new('RGB', (width, height), color=(73, 109, 137))
-    
-    # Draw text on the image
-    from PIL import ImageDraw, ImageFont
-    draw = ImageDraw.Draw(image)
-    
-    # Add instruction text
-    draw.text((20, 20), f"Instruction: {instruction[:100]}", fill=(255, 255, 255))
-    
-    # Add error message
-    draw.text((20, 60), f"Error: {error_message[:200]}", fill=(255, 200, 200))
-    
-    # Add helpful message
-    draw.text((20, 120), "Please check your OpenAI API key permissions", fill=(200, 255, 200))
-    draw.text((20, 160), "and ensure you have access to image generation", fill=(200, 255, 200))
-    
-    return image
+def edit_image_with_dalle(img, prompt):
+    """Edit image using DALL-E 2"""
+    logger.info("Editing image with DALL-E 2")
+    try:
+        # Create a temporary file with .png extension
+        import tempfile
+        temp_path = tempfile.mktemp(suffix=".png")
+        
+        # Convert to RGBA if not already and save to the temporary file
+        if img.mode != 'RGBA':
+            logger.info(f"Converting image from {img.mode} to RGBA")
+            img = img.convert('RGBA')
+        
+        img.save(temp_path, format="PNG")
+        logger.info(f"Saved image to temporary file: {temp_path}")
+        
+        # Create a mask image (transparent PNG with the same dimensions)
+        width, height = img.size
+        mask = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        mask_path = temp_path.replace(".png", "_mask.png")
+        mask.save(mask_path, format="PNG")
+        logger.info(f"Created mask image at {mask_path}")
+        
+        # Try to edit the image using OpenAI API
+        logger.info("Calling OpenAI images.edit API")
+        start_time = time.time()
+        
+        with open(temp_path, "rb") as image_file, open(mask_path, "rb") as mask_file:
+            response = client.images.edit(
+                image=image_file,
+                mask=mask_file,
+                prompt=prompt,
+                n=1,
+                size="1024x1024"
+            )
+        
+        elapsed_time = time.time() - start_time
+        logger.info(f"DALL·E 2 edit completed in {elapsed_time:.2f} seconds")
+        
+        # Get the URL of the edited image
+        edited_image_url = response.data[0].url
+        logger.info(f"Edited image URL: {edited_image_url[:50]}...")
+        
+        # Download the edited image
+        logger.info("Downloading edited image")
+        edited_image_response = requests.get(edited_image_url, timeout=30)
+        if edited_image_response.status_code != 200:
+            logger.error(f"Failed to download edited image: HTTP {edited_image_response.status_code}")
+            raise Exception(f"Failed to download edited image: HTTP {edited_image_response.status_code}")
+        
+        edited_image_data = edited_image_response.content
+        logger.info(f"Downloaded edited image, size: {len(edited_image_data)} bytes")
+        
+        # Clean up temporary files
+        import os
+        os.unlink(temp_path)
+        os.unlink(mask_path)
+        
+        return edited_image_data, True
+    except Exception as e:
+        logger.error(f"Error editing image with DALL·E 2: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        # No fallback, just return the error
+        return None, False
 
 def download_image(url):
     """Download image from URL"""
@@ -391,57 +624,29 @@ def download_image(url):
         img.save(buffered, format="PNG")
         return buffered.getvalue()
 
-@app.route('/test-image-edit', methods=['GET'])
-def test_image_edit():
-    """Test if the account has image editing capabilities"""
-    logger.info("Testing image edit capabilities")
-    try:
-        # Create a simple test image - pure white PNG with transparency
-        test_img = Image.new('RGBA', (512, 512), (255, 255, 255, 0))
-        
-        # Save to BytesIO with correct format
-        buffer = io.BytesIO()
-        test_img.save(buffer, format="PNG")
-        buffer.seek(0)
-        
-        # Create a temporary file with .png extension
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
-            temp_file.write(buffer.getvalue())
-            temp_path = temp_file.name
-        
-        logger.info(f"Created temporary PNG file at {temp_path}")
-        
-        # Open the file in binary mode with correct MIME type
-        with open(temp_path, "rb") as png_file:
-            # Try to use the images.edit endpoint
-            response = client.images.edit(
-                image=png_file,  # Pass the file object directly
-                prompt="Add a blue circle in the center",
-                n=1,
-                size="1024x1024"
-            )
-        
-        # Clean up the temporary file
-        import os
-        os.unlink(temp_path)
-        
-        return jsonify({
-            "status": "success",
-            "message": "Your account has image editing capabilities!",
-            "url": response.data[0].url
-        })
-    except Exception as e:
-        logger.error(f"Error testing image edit: {str(e)}")
-        logger.error(f"Error type: {type(e).__name__}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        
-        return jsonify({
-            "status": "error",
-            "message": "Your account does not have image editing capabilities or there was an error.",
-            "error": str(e),
-            "error_type": type(e).__name__
-        })  
+def create_placeholder_image(instruction, error_message):
+    """Create a placeholder image with text"""
+    logger.info("Creating placeholder image")
+    
+    # Create a new image with a gradient background
+    width, height = 800, 600
+    image = Image.new('RGB', (width, height), color=(73, 109, 137))
+    
+    # Draw text on the image
+    from PIL import ImageDraw, ImageFont
+    draw = ImageDraw.Draw(image)
+    
+    # Add instruction text
+    draw.text((20, 20), f"Instruction: {instruction[:100]}", fill=(255, 255, 255))
+    
+    # Add error message
+    draw.text((20, 60), f"Error: {error_message[:200]}", fill=(255, 200, 200))
+    
+    # Add helpful message
+    draw.text((20, 120), "Please check your OpenAI API key permissions", fill=(200, 255, 200))
+    draw.text((20, 160), "and ensure you have access to image generation", fill=(200, 255, 200))
+    
+    return image
 
 # For local testing (not used in production)
 if __name__ == "__main__":
