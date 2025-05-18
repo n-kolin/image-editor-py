@@ -112,13 +112,19 @@ def test_openai():
         
         # Make a simple text request to OpenAI
         logger.debug("Creating chat completion with gpt-4o-mini")
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "What is the capital of France?"}
-            ],
-            max_tokens=100
+        # response = client.chat.completions.create(
+        #     model="gpt-4o-mini",
+        #     messages=[
+        #         {"role": "system", "content": "You are a helpful assistant."},
+        #         {"role": "user", "content": "What is the capital of France?"}
+        #     ],
+        #     max_tokens=100
+        # )
+        response = client.images.create(
+            # model="dall-e-2",
+            prompt="Generate an image of a futuristic city skyline at sunset.",
+            n=1,
+            size="1024x1024"
         )
         
         # Calculate response time
@@ -441,10 +447,9 @@ def edit_image_with_dalle(img, prompt):
         logger.info("Calling OpenAI images.generate API")
         start_time = time.time()
         
-        response = client.images.create(
-            # model="dall-e-2",
-            prompt='A futuristic cityscape at sunset',
-            # prompt=enhanced_prompt,
+        response = client.images.generate(
+            model="dall-e-2",
+            prompt=enhanced_prompt,
             n=1,
             size="1024x1024"
         )
