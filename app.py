@@ -441,9 +441,10 @@ def edit_image_with_dalle(img, prompt):
         logger.info("Calling OpenAI images.generate API")
         start_time = time.time()
         
-        response = client.images.generate(
+        response = client.images.create(
             # model="dall-e-2",
-            prompt=enhanced_prompt,
+            prompt='A futuristic cityscape at sunset',
+            # prompt=enhanced_prompt,
             n=1,
             size="1024x1024"
         )
