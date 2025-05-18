@@ -195,7 +195,9 @@ def edit_image_url():
             # Step 1: Analyze the image with GPT-4o-mini
             logger.info("Step 1: Analyzing image with GPT-4o-mini")
             img_features = extract_image_features(img)
+            logger.warning(f"Extracted image features: {img_features}")
             image_analysis = analyze_image_with_gpt(img_features)
+            logger.warning(f"Image analysis result: {image_analysis}...")
             logger.info(f"Image analysis: {image_analysis[:100]}...")
             
             # Step 2: Refine the user instruction with GPT-4o-mini
