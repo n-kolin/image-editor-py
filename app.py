@@ -365,7 +365,7 @@ def analyze_image_with_gpt(img_features):
 },
 {
 "role": "user",
-"content": f"This is the image address Describe what is in this image: {img_description}"
+"content": f"This is the image address Describe what is in this image: {img_features}"
 }
             ],
             max_tokens=150  # Limiting token count for concise analysis
