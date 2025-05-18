@@ -317,8 +317,9 @@ def generate_image_with_dalle(img_buffer, prompt):
         logger.info("Attempting to generate image with DALL-E 2")
         start_time = time.time()
         
-        response = client.images.generate(
+        response = client.images.edit(
             model="dall-e-2",
+            image=img_buffer,
             prompt=f"{prompt}",
             n=1,
             size="1024x1024"
