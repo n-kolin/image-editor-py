@@ -120,7 +120,7 @@ def test_openai():
         #     ],
         #     max_tokens=100
         # )
-        response = client.images.create(
+        response = client.images.generate(
             # model="dall-e-2",
             prompt="Generate an image of a futuristic city skyline at sunset.",
             n=1,
