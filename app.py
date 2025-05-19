@@ -866,6 +866,243 @@ def create_variation():
             "message": f"Error creating image variations: {str(e)}"
         }), 500
 
+
+
+
+
+# hg
+
+
+HF_API_KEY = os.environ.get("HF_API_KEY")
+
+@app.route('/generate-image', methods=['POST'])
+def generate_image():
+    """Endpoint to generate an image using Hugging Face Stable Diffusion"""
+    logger.info("generate-image endpoint accessed")
+    
+    try:
+        start_time = time.time()
+        
+        # Get the prompt from the request
+        data = request.get_json()
+        prompt = data.get('prompt')
+        
+        if not prompt:
+            logger.warning("No prompt provided")
+            return jsonify({
+                "status": "error",
+                "message": "No prompt provided"
+            }), 400
+        
+        logger.info(f"Generating image with prompt: {prompt}")
+        
+        # Using Stable Diffusion XL from Hugging Face
+        API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+        
+        # Make the request to Hugging Face
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json={"inputs": prompt}
+        )
+        
+        # Check for errors
+        if response.status_code != 200:
+            error_msg = f"Error from Hugging Face API: {response.status_code} - {response.text}"
+            logger.error(error_msg)
+            return jsonify({
+                "status": "error",
+                "message": error_msg
+            }), 500
+        
+        # Convert the image to base64 for easy display in browser
+        image_bytes = response.content
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        
+        # Calculate response time
+        response_time = time.time() - start_time
+        logger.info(f"Image generated successfully in {response_time:.2f} seconds")
+        
+        return jsonify({
+            "status": "success",
+            "image_base64": image_base64,
+            "response_time_seconds": response_time
+        })
+    
+    except Exception as e:
+        logger.error(f"Unexpected error generating image: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error_type": type(e).__name__,
+            "error": str(e)
+        }), 500
+
+@app.route('/edit-image', methods=['POST'])
+def edit_image():
+    """Endpoint to edit an image based on both the image and a text prompt"""
+    logger.info("edit-image endpoint accessed")
+    
+    try:
+        start_time = time.time()
+        
+        # Check if an image file was uploaded
+        if 'image' not in request.files:
+            logger.warning("No image file provided")
+            return jsonify({
+                "status": "error",
+                "message": "No image file provided"
+            }), 400
+            
+        image_file = request.files['image']
+        prompt = request.form.get('prompt', '')
+        
+        if not prompt:
+            logger.warning("No prompt provided")
+            return jsonify({
+                "status": "error",
+                "message": "No prompt provided"
+            }), 400
+        
+        logger.info(f"Editing image with prompt: {prompt}")
+        
+        # Read the image file
+        image_bytes = image_file.read()
+        
+        # Convert to base64
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        
+        # Using InstructPix2Pix model from Hugging Face
+        API_URL = "https://api-inference.huggingface.co/models/timbrooks/instruct-pix2pix"
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+        
+        # Make the request to Hugging Face
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json={
+                "inputs": {
+                    "image": image_base64,
+                    "prompt": prompt
+                }
+            }
+        )
+        
+        # Check for errors
+        if response.status_code != 200:
+            error_msg = f"Error from Hugging Face API: {response.status_code} - {response.text}"
+            logger.error(error_msg)
+            return jsonify({
+                "status": "error",
+                "message": error_msg
+            }), 500
+        
+        # Convert the result image to base64
+        result_image_bytes = response.content
+        result_image_base64 = base64.b64encode(result_image_bytes).decode('utf-8')
+        
+        # Calculate response time
+        response_time = time.time() - start_time
+        logger.info(f"Image edited successfully in {response_time:.2f} seconds")
+        
+        return jsonify({
+            "status": "success",
+            "image_base64": result_image_base64,
+            "response_time_seconds": response_time
+        })
+    
+    except Exception as e:
+        logger.error(f"Unexpected error editing image: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error_type": type(e).__name__,
+            "error": str(e)
+        }), 500
+
+@app.route('/test-huggingface', methods=['POST'])
+def test_huggingface():
+    """Endpoint to test Hugging Face API connection with a simple prompt"""
+    logger.info("test-huggingface endpoint accessed")
+    try:
+        start_time = time.time()
+        
+        # Get the prompt from the request
+        data = request.get_json()
+        prompt = data.get('prompt', 'a simple blue circle')  # Default prompt if none provided
+        
+        logger.info(f"Making test request to Hugging Face API with prompt: {prompt}")
+        
+        # Log network information
+        try:
+            hostname = socket.gethostname()
+            ip_address = socket.gethostbyname(hostname)
+            logger.info(f"Host information - Hostname: {hostname}, IP: {ip_address}")
+            
+            # Test connection to Hugging Face API
+            hf_host = "api-inference.huggingface.co"
+            logger.info(f"Testing connection to {hf_host}")
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(15)
+            result = s.connect_ex((hf_host, 443))
+            if result == 0:
+                logger.info(f"Connection to {hf_host}:443 successful")
+            else:
+                logger.warning(f"Connection to {hf_host}:443 failed with error code {result}")
+            s.close()
+        except Exception as net_err:
+            logger.error(f"Error checking network: {str(net_err)}")
+        
+        # Make a simple request to Hugging Face
+        logger.debug("Creating test image with Stable Diffusion")
+        
+        # Using a smaller/faster model for testing
+        API_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+        
+        # Make the request
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json={"inputs": prompt}
+        )
+        
+        # Check response status
+        if response.status_code != 200:
+            logger.error(f"Hugging Face API returned status code {response.status_code}")
+            logger.error(f"Response content: {response.text}")
+            return jsonify({
+                "status": "error",
+                "message": f"Hugging Face API returned status code {response.status_code}",
+                "details": response.text
+            }), 500
+        
+        # Convert the image to base64
+        image_base64 = base64.b64encode(response.content).decode('utf-8')
+        
+        # Calculate response time
+        response_time = time.time() - start_time
+        logger.info(f"Hugging Face API responded in {response_time:.2f} seconds")
+        
+        return jsonify({
+            "status": "success",
+            "image_base64": image_base64,
+            "response_time_seconds": response_time,
+            "model": "runwayml/stable-diffusion-v1-5"
+        })
+    except Exception as e:
+        logger.error(f"Unexpected error testing Hugging Face API: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error_type": type(e).__name__,
+            "error": str(e)
+        }), 500
+
 # For local testing (not used in production)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
