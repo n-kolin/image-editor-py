@@ -504,7 +504,7 @@ def generate_image_gemini():
         # Initialize Gemini client
         try:
             from google import genai
-            from google.genai import types
+            from google.generativeai import types
             from PIL import Image
             from io import BytesIO
             import base64
