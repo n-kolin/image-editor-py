@@ -483,7 +483,6 @@ def edit_image_with_dalle(img, prompt):
         # No fallback, just return the error
         return None, False
 
-
 @app.route('/generate-image-gemini', methods=['POST'])
 def generate_image_gemini():
     """Generate an image using Google's Gemini model"""
@@ -501,34 +500,35 @@ def generate_image_gemini():
         
         logger.info(f"Received prompt: {prompt}")
         
-        # Initialize Gemini client
+        # Initialize Gemini
         try:
-            from google import generativeai
-            from google.generativeai import types
+            import google.generativeai as genai
             from PIL import Image
             from io import BytesIO
             import base64
             
-            # Get API key from environment variable
-            # gemini_api_key = os.environ.get("GEMINI_API_KEY")
+            # Get API key from environment variable or request
+            # gemini_api_key = data.get('api_key') or os.environ.get("GEMINI_API_KEY")
             # if not gemini_api_key:
-            #     logger.critical("GEMINI_API_KEY environment variable is not set!")
-            #     return jsonify({"error": "GEMINI_API_KEY environment variable is not set!"}), 500
+            #     logger.critical("GEMINI_API_KEY not provided")
+            #     return jsonify({"error": "GEMINI_API_KEY is required. Please provide it in the request or set the environment variable."}), 400
             
-            # # Initialize Gemini client
+            # # Configure the Gemini API
             # genai.configure(api_key=gemini_api_key)
-            client = generativeai.Client()
-            logger.info("Gemini client initialized successfully")
+            # logger.info("Gemini API configured successfully")
             
             # Generate image with Gemini
             start_time = time.time()
             logger.info(f"Generating image with Gemini model: gemini-2.0-flash-preview-image-generation")
             
-            response = client.models.generate_content(
-                model="gemini-2.0-flash-preview-image-generation",
+            # Get the model
+            model = genai.GenerativeModel('gemini-2.0-flash-preview-image-generation')
+            
+            # Generate content
+            response = model.generate_content(
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=['TEXT', 'IMAGE']
+                generation_config=genai.types.GenerationConfig(
+                    response_mime_types=['text/plain', 'image/png']
                 )
             )
             
@@ -537,10 +537,10 @@ def generate_image_gemini():
             image_data = None
             
             for part in response.candidates[0].content.parts:
-                if part.text is not None:
+                if hasattr(part, 'text') and part.text:
                     text_content += part.text
                     logger.info(f"Received text response: {text_content[:100]}...")
-                elif part.inline_data is not None:
+                elif hasattr(part, 'inline_data') and part.inline_data:
                     # Convert binary data to image
                     image_data = base64.b64decode(part.inline_data.data)
                     logger.info(f"Received image data, size: {len(image_data)} bytes")
@@ -602,7 +602,7 @@ def generate_image_gemini():
             "error": str(e),
             "error_type": type(e).__name__
         }), 500
-
+    
 
 # For local testing (not used in production)
 if __name__ == "__main__":
