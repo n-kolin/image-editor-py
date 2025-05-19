@@ -82,7 +82,7 @@ def fun():
     logger.info("Root endpoint accessed")
     return {'message': 'Image Editor API is running!'}
 
-@app.route('/test-openai', methods=['GET'])
+@app.route('/test-openai', methods=['POST'])
 def test_openai():
     """Simple endpoint to test OpenAI API connection without images"""
     logger.info("test-openai endpoint accessed")
@@ -110,15 +110,20 @@ def test_openai():
         except Exception as net_err:
             logger.error(f"Error checking network: {str(net_err)}")
         
+        data = request.json
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        prompt = data.get('prompt')
         # Make a simple text request to OpenAI
         logger.debug("Creating chat completion with gpt-4o-mini")
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Give me back a picture of a red car."}
+                {"role": "user", "content": prompt}
             ],
-            # max_tokens=100
+            max_tokens=100
         )
         
         
