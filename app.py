@@ -792,10 +792,11 @@ def generate_image():
         # Generate the image using DALL-E
         response = client.images.generate(
             model="dall-e-2",
-            prompt='Give me back a picture of a red car.',
+            prompt='blue circle.',
             size="1024x1024",
             # quality="standard",
-            n=1
+            n=1,
+            response_format="url"
         )
         
         image_url = response.data[0].url
