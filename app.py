@@ -786,7 +786,7 @@ def generate_image():
         #         "message": "No prompt provided"
         #     }), 400
         
-        logger.info(f"Generating image with prompt: {prompt}")
+        # logger.info(f"Generating image with prompt: {prompt}")
         start_time = time.time()
         
         # Generate the image using DALL-E
