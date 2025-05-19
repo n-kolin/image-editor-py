@@ -876,7 +876,7 @@ def create_variation():
 HF_API_KEY = os.environ.get("HF_API_KEY")
 
 @app.route('/generate-image-hf', methods=['POST'])
-def generate_image():
+def generate_image_hf():
     """Endpoint to generate an image using Hugging Face Stable Diffusion"""
     logger.info("generate-image endpoint accessed")
     
@@ -941,7 +941,7 @@ def generate_image():
         }), 500
 
 @app.route('/edit-image-hf', methods=['POST'])
-def edit_image():
+def edit_image_hf():
     """Endpoint to edit an image based on both the image and a text prompt"""
     logger.info("edit-image endpoint accessed")
     
