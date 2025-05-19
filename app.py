@@ -196,7 +196,7 @@ def edit_image_url():
             logger.info("Step 1: Analyzing image with GPT-4o-mini")
             img_features = extract_image_features(img)
             logger.warning(f"Extracted image features: {img_features}")
-            image_analysis = analyze_image_with_gpt(img)
+            image_analysis = analyze_image_with_gpt(img_features)
             logger.warning(f"Image analysis result: {image_analysis}...")
             logger.info(f"Image analysis: {image_analysis[:100]}...")
             
@@ -354,19 +354,14 @@ def analyze_image_with_gpt(img_features):
             model="gpt-4o-mini",
             messages=[
                 {
-                #     "role": "system",
-                #     "content": "You are an expert image analyst. Describe what might be in this image based on the technical data provided. Be specific about possible objects, their positions, and the overall scene composition. Keep your analysis under 300 characters."
-                # },
-                # {
-                #     "role": "user",
-                #     "content": f"Based on this technical data, describe what might be in this image: {img_description}"
-                # }"role": "system",
-"content": "You are an expert in image analysis. Describe what is in the image. Be specific about objects, their location, and the overall composition of the scene. Keep your analysis to less than 300 characters."
-},
-{
-"role": "user",
-"content": f"This is the image address Describe what is in this image: {img_features}"
-}
+                    "role": "system",
+                    "content": "You are an expert image analyst. Describe what might be in this image based on the technical data provided. Be specific about possible objects, their positions, and the overall scene composition. Keep your analysis under 300 characters."
+                },
+                {
+                    "role": "user",
+                    "content": f"Based on this technical data, describe what might be in this image: {img_description}"
+                }
+                
             ],
             max_tokens=150  # Limiting token count for concise analysis
         )
@@ -487,6 +482,127 @@ def edit_image_with_dalle(img, prompt):
         
         # No fallback, just return the error
         return None, False
+
+
+@app.route('/generate-image-gemini', methods=['POST'])
+def generate_image_gemini():
+    """Generate an image using Google's Gemini model"""
+    logger.info("generate-image-gemini endpoint accessed")
+    try:
+        # Get the prompt from the request
+        data = request.json
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        prompt = data.get('prompt')
+        if not prompt:
+            logger.warning("No prompt provided")
+            return jsonify({"error": "No prompt provided"}), 400
+        
+        logger.info(f"Received prompt: {prompt}")
+        
+        # Initialize Gemini client
+        try:
+            from google import genai
+            from google.genai import types
+            from PIL import Image
+            from io import BytesIO
+            import base64
+            
+            # Get API key from environment variable
+            # gemini_api_key = os.environ.get("GEMINI_API_KEY")
+            # if not gemini_api_key:
+            #     logger.critical("GEMINI_API_KEY environment variable is not set!")
+            #     return jsonify({"error": "GEMINI_API_KEY environment variable is not set!"}), 500
+            
+            # # Initialize Gemini client
+            # genai.configure(api_key=gemini_api_key)
+            client = genai.Client()
+            logger.info("Gemini client initialized successfully")
+            
+            # Generate image with Gemini
+            start_time = time.time()
+            logger.info(f"Generating image with Gemini model: gemini-2.0-flash-preview-image-generation")
+            
+            response = client.models.generate_content(
+                model="gemini-2.0-flash-preview-image-generation",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=['TEXT', 'IMAGE']
+                )
+            )
+            
+            # Process response
+            text_content = ""
+            image_data = None
+            
+            for part in response.candidates[0].content.parts:
+                if part.text is not None:
+                    text_content += part.text
+                    logger.info(f"Received text response: {text_content[:100]}...")
+                elif part.inline_data is not None:
+                    # Convert binary data to image
+                    image_data = base64.b64decode(part.inline_data.data)
+                    logger.info(f"Received image data, size: {len(image_data)} bytes")
+            
+            # Calculate response time
+            response_time = time.time() - start_time
+            logger.info(f"Gemini API responded in {response_time:.2f} seconds")
+            
+            # Prepare response
+            if image_data:
+                # Create a response with both the image and text
+                response_data = {
+                    "status": "success",
+                    "text": text_content,
+                    "response_time_seconds": response_time,
+                    "model": "gemini-2.0-flash-preview-image-generation"
+                }
+                
+                # Return the generated image and text
+                return send_file_with_json(
+                    image_data,
+                    mimetype='image/png',
+                    as_attachment=True,
+                    download_name='gemini_generated_image.png',
+                    json_data=response_data
+                )
+            else:
+                # If no image was generated, return just the text
+                return jsonify({
+                    "status": "success",
+                    "text": text_content,
+                    "response_time_seconds": response_time,
+                    "model": "gemini-2.0-flash-preview-image-generation"
+                })
+                
+        except ImportError as import_err:
+            logger.error(f"Missing required packages for Gemini: {str(import_err)}")
+            return jsonify({
+                "status": "error",
+                "error": f"Missing required packages: {str(import_err)}",
+                "error_type": "ImportError"
+            }), 500
+        except Exception as gemini_err:
+            logger.error(f"Error with Gemini API: {str(gemini_err)}")
+            logger.error(f"Error type: {type(gemini_err).__name__}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return jsonify({
+                "status": "error",
+                "error": str(gemini_err),
+                "error_type": type(gemini_err).__name__
+            }), 500
+    
+    except Exception as e:
+        logger.error(f"Error in generate-image-gemini endpoint: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }), 500
+
 
 # For local testing (not used in production)
 if __name__ == "__main__":
