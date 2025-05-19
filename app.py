@@ -120,12 +120,7 @@ def test_openai():
             ],
             # max_tokens=100
         )
-        # response = client.images.generate(
-        #     # model="dall-e-2",
-        #     prompt="Generate an image of a futuristic city skyline at sunset.",
-        #     n=1,
-        #     size="1024x1024"
-        # )
+        
         
         # Calculate response time
         response_time = time.time() - start_time
@@ -771,6 +766,57 @@ def get_detailed_direct_analysis(img_base64, img_format):
         logger.error(f"Error type: {type(e).__name__}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         return f"Failed to get detailed direct image analysis: {str(e)}"
+
+
+
+
+@app.route('/generate-image', methods=['GET'])
+def generate_image():
+    """Endpoint to generate an image using DALL-E"""
+    logger.info("generate-image endpoint accessed")
+    
+    try:
+        # Get the prompt from the request
+        # data = request.get_json()
+        # prompt = data.get('prompt')
+        
+        # if not prompt:
+        #     return jsonify({
+        #         "status": "error",
+        #         "message": "No prompt provided"
+        #     }), 400
+        
+        logger.info(f"Generating image with prompt: {prompt}")
+        start_time = time.time()
+        
+        # Generate the image using DALL-E
+        response = client.images.generate(
+            model="dall-e-2",
+            prompt='Give me back a picture of a red car.',
+            size="1024x1024",
+            quality="standard",
+            n=1
+        )
+        
+        image_url = response.data[0].url
+        elapsed_time = time.time() - start_time
+        
+        logger.info(f"Image generated successfully. Time elapsed: {elapsed_time:.2f} seconds")
+        
+        return jsonify({
+            "status": "success",
+            "image_url": image_url,
+            "time_elapsed": f"{elapsed_time:.2f} seconds"
+        })
+    
+    except Exception as e:
+        logger.error(f"Error generating image: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": f"Error generating image: {str(e)}"
+        }), 500
+
+
 
 
 # For local testing (not used in production)
