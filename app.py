@@ -112,20 +112,20 @@ def test_openai():
         
         # Make a simple text request to OpenAI
         logger.debug("Creating chat completion with gpt-4o-mini")
-        # response = client.chat.completions.create(
-        #     model="gpt-4o-mini",
-        #     messages=[
-        #         {"role": "system", "content": "You are a helpful assistant."},
-        #         {"role": "user", "content": "What is the capital of France?"}
-        #     ],
-        #     max_tokens=100
-        # )
-        response = client.images.generate(
-            # model="dall-e-2",
-            prompt="Generate an image of a futuristic city skyline at sunset.",
-            n=1,
-            size="1024x1024"
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Give me back a picture of a red car."}
+            ],
+            # max_tokens=100
         )
+        # response = client.images.generate(
+        #     # model="dall-e-2",
+        #     prompt="Generate an image of a futuristic city skyline at sunset.",
+        #     n=1,
+        #     size="1024x1024"
+        # )
         
         # Calculate response time
         response_time = time.time() - start_time
