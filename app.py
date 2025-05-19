@@ -604,6 +604,175 @@ def generate_image_gemini():
         }), 500
     
 
+
+
+@app.route('/analyze-image-file', methods=['POST'])
+def analyze_image_file():
+    """Analyze an uploaded image file directly using GPT-4o-mini"""
+    logger.info("analyze-image-file endpoint accessed")
+    try:
+        # Check if the post request has the file part
+        if 'image' not in request.files:
+            logger.warning("No image file in request")
+            return jsonify({"error": "No image file provided"}), 400
+        
+        file = request.files['image']
+        
+        # If user does not select file, browser might submit an empty file
+        if file.filename == '':
+            logger.warning("Empty filename submitted")
+            return jsonify({"error": "No image selected"}), 400
+        
+        # Check if the file is allowed
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'}
+        if not '.' in file.filename or file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
+            logger.warning(f"File type not allowed: {file.filename}")
+            return jsonify({"error": "File type not allowed. Please upload an image (png, jpg, jpeg, gif, webp, bmp)"}), 400
+        
+        logger.info(f"Processing uploaded image: {file.filename}")
+        
+        # Process the image
+        try:
+            start_time = time.time()
+            
+            # Read the image
+            img_data = file.read()
+            img = Image.open(io.BytesIO(img_data))
+            logger.info(f"Image opened successfully. Format: {img.format}, Size: {img.size}")
+            
+            # For reference, still extract basic features
+            img_features = extract_image_features(img)
+            
+            # Convert image to base64 for sending to OpenAI API
+            buffered = io.BytesIO()
+            img.save(buffered, format=img.format if img.format else "JPEG")
+            img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            
+            # Analyze the image directly with GPT-4o-mini
+            analysis = analyze_image_directly(img_base64, img.format if img.format else "JPEG")
+            logger.info(f"Direct image analysis completed")
+            
+            # Get detailed analysis with specific questions
+            detailed_analysis = get_detailed_direct_analysis(img_base64, img.format if img.format else "JPEG")
+            logger.info(f"Detailed direct analysis completed")
+            
+            # Calculate response time
+            response_time = time.time() - start_time
+            logger.info(f"Analysis completed in {response_time:.2f} seconds")
+            
+            # Return the analysis
+            return jsonify({
+                "status": "success",
+                "filename": file.filename,
+                "image_features": img_features,  # Still include basic features for reference
+                "analysis": analysis,
+                "detailed_analysis": detailed_analysis,
+                "response_time_seconds": response_time
+            })
+            
+        except Exception as process_err:
+            logger.error(f"Error processing image: {str(process_err)}")
+            logger.error(f"Error type: {type(process_err).__name__}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return jsonify({
+                "status": "error",
+                "error": str(process_err),
+                "error_type": type(process_err).__name__
+            }), 500
+    
+    except Exception as e:
+        logger.error(f"Error in analyze-image-file endpoint: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }), 500
+
+def analyze_image_directly(img_base64, img_format):
+    """Analyze the image directly using GPT-4o-mini's vision capabilities"""
+    logger.info("Analyzing image directly with GPT-4o-mini")
+    try:
+        # Create the message with the image
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an expert image analyst. Describe what you see in this image in detail, including objects, people, scenes, colors, and any notable elements."
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Analyze this image and describe what you see in detail."
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/{img_format.lower()};base64,{img_base64}"
+                        }
+                    }
+                ]
+            }
+        ]
+        
+        # Call the OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            max_tokens=300
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Error analyzing image directly: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return f"Failed to analyze image directly: {str(e)}"
+
+def get_detailed_direct_analysis(img_base64, img_format):
+    """Get a more detailed analysis of the image by asking specific questions"""
+    logger.info("Getting detailed direct image analysis with GPT-4o-mini")
+    try:
+        # Create the message with the image and specific questions
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an expert image analyst with deep knowledge in visual arts, photography, and cultural context. Provide a comprehensive analysis of the image."
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Please analyze this image in detail and answer the following questions:\n\n1. What are the main subjects or objects in the image?\n2. What is the overall mood or atmosphere of the image?\n3. What techniques or style is used in this image?\n4. What might be the context or story behind this image?\n5. Are there any notable details that might be easily missed?"
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/{img_format.lower()};base64,{img_base64}"
+                        }
+                    }
+                ]
+            }
+        ]
+        
+        # Call the OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            max_tokens=500
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Error getting detailed direct image analysis: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return f"Failed to get detailed direct image analysis: {str(e)}"
+
+
 # For local testing (not used in production)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
