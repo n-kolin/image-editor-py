@@ -503,7 +503,7 @@ def generate_image_gemini():
         
         # Initialize Gemini client
         try:
-            from google import genai
+            from google import generativeai
             from google.generativeai import types
             from PIL import Image
             from io import BytesIO
@@ -517,7 +517,7 @@ def generate_image_gemini():
             
             # # Initialize Gemini client
             # genai.configure(api_key=gemini_api_key)
-            client = genai.Client()
+            client = generativeai.Client()
             logger.info("Gemini client initialized successfully")
             
             # Generate image with Gemini
