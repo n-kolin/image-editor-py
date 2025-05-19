@@ -794,7 +794,7 @@ def generate_image():
             model="dall-e-2",
             prompt='Give me back a picture of a red car.',
             size="1024x1024",
-            quality="standard",
+            # quality="standard",
             n=1
         )
         
