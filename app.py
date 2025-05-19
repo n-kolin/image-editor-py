@@ -818,7 +818,53 @@ def generate_image():
         }), 500
 
 
-
+@app.route('/create-variation', methods=['POST'])
+def create_variation():
+    """Endpoint to create variations of an existing image"""
+    logger.info("create-variation endpoint accessed")
+    
+    try:
+        # Check if an image file was uploaded
+        if 'image' not in request.files:
+            return jsonify({
+                "status": "error",
+                "message": "No image file provided"
+            }), 400
+            
+        image_file = request.files['image']
+        
+        # Save the uploaded file temporarily
+        temp_path = "temp_upload.png"
+        image_file.save(temp_path)
+        
+        # Get number of variations (default to 1)
+        num_variations = 1
+        
+        # Create variations
+        with open(temp_path, "rb") as image_file:
+            response = client.images.create_variation(
+                image=image_file,
+                n=num_variations,
+                size="1024x1024"
+            )
+            
+        # Extract URLs from the response
+        variation_urls = [item.url for item in response.data]
+        
+        # Clean up the temporary file
+        os.remove(temp_path)
+        
+        return jsonify({
+            "status": "success",
+            "variation_urls": variation_urls
+        })
+    
+    except Exception as e:
+        logger.error(f"Error creating image variations: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": f"Error creating image variations: {str(e)}"
+        }), 500
 
 # For local testing (not used in production)
 if __name__ == "__main__":
