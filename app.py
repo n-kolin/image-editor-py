@@ -14,6 +14,8 @@ from openai import OpenAI
 import logging
 from dotenv import load_dotenv
 
+from flask_cors import CORS
+
 # Load environment variables
 load_dotenv()
 
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
 # Maximum length for DALL-E 2 prompts
 MAX_DALLE_PROMPT_LENGTH = 900
 
