@@ -1328,14 +1328,13 @@ Please provide the JSON object with the necessary changes based on the request a
                     logger.warning(f"Response does not contain 'filters' key: {filters_obj}")
                     filters_obj = {"filters": {}}
             
-            # חישוב זמן התגובה
-            response_time = time.time() - start_time
-            logger.info(f"Request processed in {response_time:.2f} seconds")
+            # # חישוב זמן התגובה
+            # response_time = time.time() - start_time
+            # logger.info(f"Request processed in {response_time:.2f} seconds")
             
             return jsonify({
                 "status": "success",
                 "data": filters_obj,
-                "response_time_seconds": response_time
             })
             
         except json.JSONDecodeError as json_err:
@@ -1354,15 +1353,10 @@ Please provide the JSON object with the necessary changes based on the request a
                     # וידוא שהאובייקט מכיל את המפתח 'filters'
                     if "filters" not in filters_obj:
                         filters_obj = {"filters": filters_obj}
-                    
-                    # חישוב זמן התגובה
-                    response_time = time.time() - start_time
-                    logger.info(f"Request processed in {response_time:.2f} seconds (after extraction)")
-                    
+                   
                     return jsonify({
                         "status": "success",
                         "data": filters_obj,
-                        "response_time_seconds": response_time,
                         "note": "JSON was extracted from text response"
                     })
                     
