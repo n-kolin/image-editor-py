@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
+CORS(app, resources={r"/api/*": {"origins": "https://image-editor-amq7.onrender.com"}})
 # Maximum length for DALL-E 2 prompts
 MAX_DALLE_PROMPT_LENGTH = 900
 
