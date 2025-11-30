@@ -343,7 +343,7 @@ Please provide the JSON object with the necessary changes based on the request a
 
 
 
-@app.route('text-to-image', methods=['POST'])
+@app.route('/text-to-image', methods=['POST'])
 def text_to_image():
     """
     An endpoint for generating images from text prompts using OpenAI's image generation API.
@@ -424,7 +424,7 @@ def text_to_image():
 
 
 
-@app.route('text-to-image', methods=['GET'])
+@app.route('/text-to-image', methods=['GET'])
 def text_to_image():
     
     logger.info("text-to-image GET")
