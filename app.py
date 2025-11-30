@@ -13,6 +13,7 @@ import httpx
 from openai import OpenAI
 import logging
 from dotenv import load_dotenv
+from google import genai
 
 from flask_cors import CORS
 
@@ -79,7 +80,6 @@ except Exception as e:
 
 
 
-from google import genai
 
 # The client gets the API key from the environment variable `GEMINI_API_KEY`.
 client = genai.Client()
