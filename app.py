@@ -82,34 +82,7 @@ except Exception as e:
 
 
 # The client gets the API key from the environment variable `GEMINI_API_KEY`.
-client = genai.Client()
-
-@app.route('/gemini-gen-text', methods=['POST'])
-def gemini_gen_text():
-    request_data = request.json
-    user_prompt = request_data.get('prompt', 'Hello, Gemini!')
-    logger.info(f"Received Gemini prompt: {user_prompt}")
-    
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=user_prompt
-        )
-        logger.info("Gemini response received successfully")
-        
-        return jsonify({
-            "status": "success",
-            "data": {
-                "response_text": response.text
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Error generating text with Gemini: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return jsonify({
-            "status": "error",
-            "error": str(e)
-        }), 500
+# client = genai.Client()
 
 
 @app.route('/gemini-gen-image', methods=['POST'])
@@ -135,7 +108,7 @@ def gemini_gen_image():
         return jsonify({
             "status": "success",
             "data": {
-                "response_text": response.text
+                "response_parts": response.parts
             }
         })
         
