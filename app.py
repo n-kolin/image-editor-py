@@ -120,15 +120,21 @@ def gemini_gen_image():
     request_data = request.json
     user_prompt = request_data.get('prompt', 'Hello, Gemini!')
     logger.info(f"Received Gemini prompt: {user_prompt}")
-    
+    client_2 = genai.Client()
+
 
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash-image')
-        response = model.generate_content(
+        # model = genai.GenerativeModel('gemini-2.5-flash-image')
+        # response = model.generate_content(
+        # model="gemini-2.5-flash-image",
+        # contents=[user_prompt],
+        # )
+        response = client_2.models.generate_content(
         model="gemini-2.5-flash-image",
         contents=[user_prompt],
-)
+        )
       
+
         logger.info("Gemini response received successfully", response)
     
         return jsonify({
