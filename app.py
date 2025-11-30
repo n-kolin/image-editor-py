@@ -38,7 +38,7 @@ CORS(app, resources={r"/*": {"origins": "https://image-editor-amq7.onrender.com"
 # Log environment setup
 api_key = os.environ.get("OPENAI_API_KEY")
 api_key_freepik = os.environ.get("FREEPIK_API_KEY")
-api_key_gemini = os.environ.get("GOOGLE_API_KEY_GEMINI")
+api_key_gemini = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     logger.critical("OPENAI_API_KEY environment variable is not set!")
     raise ValueError("OPENAI_API_KEY environment variable is not set!")
