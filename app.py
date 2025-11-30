@@ -413,7 +413,7 @@ def text_to_image_post():
         # )
         return jsonify({
                 "status": "success",
-                "data": response.json(),
+                "data": response,
         })
         
     except Exception as e:
@@ -495,7 +495,7 @@ def text_to_image_get():
         # )
         return jsonify({
                 "status": "success",
-                "data": response.json(),
+                "data": response,
         })
         
     except Exception as e:
