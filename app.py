@@ -85,6 +85,36 @@ except Exception as e:
 # client = genai.Client()
 
 
+@app.route('/gemini-gen-text', methods=['POST'])
+def gemini_gen_text():
+    request_data = request.json
+    user_prompt = request_data.get('prompt', 'Hello, Gemini!')
+    logger.info(f"Received Gemini prompt: {user_prompt}")
+    
+
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(user_prompt)
+
+      
+        logger.info("Gemini response received successfully", response)
+    
+        return jsonify({
+            "status": "success",
+            "data": {
+                "response_text": response.text
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating text with Gemini: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500
+
+
 @app.route('/gemini-gen-image', methods=['POST'])
 def gemini_gen_image():
     request_data = request.json
@@ -94,22 +124,17 @@ def gemini_gen_image():
 
     try:
         model = genai.GenerativeModel('gemini-2.5-flash-image')
-        response = model.generate_content("Create a picture of a nano banana dish in a fancy restaurant with a Gemini theme")
-
-        # response = client.models.generate_content(
-        #     model="gemini-2.5-flash-image", contents=user_prompt
-        # )
+        response = model.generate_content(
+        model="gemini-2.5-flash-image",
+        contents=[user_prompt],
+)
+      
         logger.info("Gemini response received successfully", response)
-    #     for part in response.parts:
-    #       if part.text is not None:
-    #           print(part.text)
-    #       elif part.inline_data is not None:
-    #           image = part.as_image()
-    #           image.save("generated_image.png")
+    
         return jsonify({
             "status": "success",
             "data": {
-                "response_parts": response.parts
+                "response_text": response.parts
             }
         })
         
