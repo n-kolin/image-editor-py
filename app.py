@@ -13,7 +13,7 @@ import httpx
 from openai import OpenAI
 import logging
 from dotenv import load_dotenv
-import google.genai as genai
+import google.generativeai as genai
 
 from flask_cors import CORS
 
@@ -119,9 +119,12 @@ def gemini_gen_image():
     logger.info(f"Received Gemini prompt: {user_prompt}")
     
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-image", contents=user_prompt
-        )
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content('Please summarise this document: ...')
+
+        # response = client.models.generate_content(
+        #     model="gemini-2.5-flash-image", contents=user_prompt
+        # )
         logger.info("Gemini response received successfully")
     #     for part in response.parts:
     # if part.text is not None:
@@ -132,7 +135,7 @@ def gemini_gen_image():
         return jsonify({
             "status": "success",
             "data": {
-                "response_parts": response.parts
+                "response_text": response.text
             }
         })
         
