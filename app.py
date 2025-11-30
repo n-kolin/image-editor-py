@@ -411,10 +411,7 @@ def text_to_image_post():
             # as_attachment=True,
             # download_name='generated_image.png'
         # )
-        return jsonify({
-                "status": "success",
-                "base64": response.data[0].base64,
-        })
+        return response
         
     except Exception as e:
         logger.error(f"Unexpected error processing text-to-image request: {str(e)}")
