@@ -13,7 +13,7 @@ import httpx
 from openai import OpenAI
 import logging
 from dotenv import load_dotenv
-import google.generativeai as genai
+import google.genai as genai
 
 from flask_cors import CORS
 
