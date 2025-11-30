@@ -38,6 +38,7 @@ CORS(app, resources={r"/*": {"origins": "https://image-editor-amq7.onrender.com"
 # Log environment setup
 api_key = os.environ.get("OPENAI_API_KEY")
 api_key_freepik = os.environ.get("FREEPIK_API_KEY")
+api_key_gemini = os.environ.get("GOOGLE_API_KEY_GEMINI")
 if not api_key:
     logger.critical("OPENAI_API_KEY environment variable is not set!")
     raise ValueError("OPENAI_API_KEY environment variable is not set!")
@@ -75,6 +76,41 @@ except Exception as e:
     logger.critical(f"Failed to initialize OpenAI client: {str(e)}")
     logger.critical(f"Traceback: {traceback.format_exc()}")
     raise
+
+
+
+from google import genai
+
+# The client gets the API key from the environment variable `GEMINI_API_KEY`.
+client = genai.Client()
+
+@app.route('/gemini-gen-text', methods=['POST'])
+def gemini_gen_text():
+    request_data = request.json
+    user_prompt = request_data.get('prompt', 'Hello, Gemini!')
+    logger.info(f"Received Gemini prompt: {user_prompt}")
+    
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=user_prompt
+        )
+        logger.info("Gemini response received successfully")
+        
+        return jsonify({
+            "status": "success",
+            "data": {
+                "response_text": response.text
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating text with Gemini: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500
+
 
 @app.route('/', methods=['GET'])
 def fun():
@@ -411,6 +447,8 @@ def text_to_image_post():
             # as_attachment=True,
             # download_name='generated_image.png'
         # )
+        #??? TypeError: The view function for 'text_to_image_post' did not return a valid response. The function either returned None or ended without a return statement.
+
         return response
         
     except Exception as e:
