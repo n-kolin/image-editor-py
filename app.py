@@ -124,7 +124,7 @@ def gemini_gen_image():
 
 
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        model = genai.GenerativeModel('imagen-4.0-generate-001')
         response = model.generate_images(
         model='imagen-4.0-generate-001',
         prompt=user_prompt,
