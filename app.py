@@ -37,6 +37,7 @@ CORS(app, resources={r"/*": {"origins": "https://image-editor-amq7.onrender.com"
 
 # Log environment setup
 api_key = os.environ.get("OPENAI_API_KEY")
+api_key_freepik = os.environ.get("FREEPIK_API_KEY")
 if not api_key:
     logger.critical("OPENAI_API_KEY environment variable is not set!")
     raise ValueError("OPENAI_API_KEY environment variable is not set!")
@@ -369,7 +370,7 @@ def text_to_image_post():
 
         headers = {
             'Content-Type': 'application/json',
-            'x-freepik-api-key': api_key
+            'x-freepik-api-key': api_key_freepik
         }
 
         data = {
@@ -447,7 +448,7 @@ def text_to_image_get():
 
         headers = {
             'Content-Type': 'application/json',
-            'x-freepik-api-key': api_key
+            'x-freepik-api-key': api_key_freepik
         }
 
         data = {
