@@ -112,6 +112,39 @@ def gemini_gen_text():
         }), 500
 
 
+@app.route('/gemini-gen-image', methods=['POST'])
+def gemini_gen_image():
+    request_data = request.json
+    user_prompt = request_data.get('prompt', 'Hello, Gemini!')
+    logger.info(f"Received Gemini prompt: {user_prompt}")
+    
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image", contents=user_prompt
+        )
+        logger.info("Gemini response received successfully")
+    #     for part in response.parts:
+    # if part.text is not None:
+    #     print(part.text)
+    # elif part.inline_data is not None:
+    #     image = part.as_image()
+    #     image.save("generated_image.png")
+        return jsonify({
+            "status": "success",
+            "data": {
+                "response_parts": response.parts
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating text with Gemini: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500
+
+
 @app.route('/', methods=['GET'])
 def fun():
     logger.info("Root endpoint accessed")
