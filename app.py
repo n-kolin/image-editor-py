@@ -344,7 +344,7 @@ Please provide the JSON object with the necessary changes based on the request a
 
 
 @app.route('/text-to-image', methods=['POST'])
-def text_to_image():
+def text_to_image_post():
     """
     An endpoint for generating images from text prompts using OpenAI's image generation API.
     Accepts a text prompt and returns a generated image.
@@ -425,7 +425,7 @@ def text_to_image():
 
 
 @app.route('/text-to-image', methods=['GET'])
-def text_to_image():
+def text_to_image_get():
     
     logger.info("text-to-image GET")
     
