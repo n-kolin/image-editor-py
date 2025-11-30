@@ -148,9 +148,9 @@ def gemini_gen_image():
 
 @app.route('/list', methods=['GET'])
 def fun_list():
-    logger.info("Root endpoint accessed")
-    return {'message': genai.list_models()
-}
+    response = genai.list_models()
+    logger.info("Root endpoint accessed", response)
+    return { response }
 
 @app.route('/', methods=['GET'])
 def fun():
