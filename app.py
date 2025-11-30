@@ -150,7 +150,7 @@ def gemini_gen_image():
 def fun_list():
     response = genai.list_models()
     logger.info("Root endpoint accessed", response)
-    return { response }
+    return { 'message': 'Image Editor API is running!' }
 
 @app.route('/', methods=['GET'])
 def fun():
