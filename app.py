@@ -98,7 +98,7 @@ def gemini_gen_image():
         # response = client.models.generate_content(
         #     model="gemini-2.5-flash-image", contents=user_prompt
         # )
-        logger.info("Gemini response received successfully")
+        logger.info("Gemini response received successfully", response)
     #     for part in response.parts:
     # if part.text is not None:
     #     print(part.text)
@@ -108,7 +108,7 @@ def gemini_gen_image():
         return jsonify({
             "status": "success",
             "data": {
-                "response_parts": response.parts
+                "response_parts": response.text
             }
         })
         
