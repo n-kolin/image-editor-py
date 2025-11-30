@@ -92,7 +92,7 @@ def gemini_gen_image():
     logger.info(f"Received Gemini prompt: {user_prompt}")
     
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content('Please summarise this document: ...')
 
         # response = client.models.generate_content(
