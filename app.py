@@ -341,6 +341,92 @@ Please provide the JSON object with the necessary changes based on the request a
         }), 500
 
 
+
+
+@app.route('text-to-image', methods=['POST'])
+def text_to_image():
+    """
+    An endpoint for generating images from text prompts using OpenAI's image generation API.
+    Accepts a text prompt and returns a generated image.
+    """
+    logger.info("text-to-image endpoint accessed")
+    
+    try:
+        request_data = request.json
+        if not request_data or 'prompt' not in request_data:
+            logger.error("Missing 'prompt' in request data")
+            return jsonify({
+                "status": "error",
+                "error": "Missing 'prompt' in request data"
+            }), 400
+        
+        user_prompt = request_data['prompt']
+        logger.info(f"Received text-to-image prompt: {user_prompt}")
+        
+        url_freepik = 'https://api.freepik.com/v1/ai/text-to-image'
+
+
+
+        headers = {
+            'Content-Type': 'application/json',
+            'x-freepik-api-key': api_key
+        }
+
+        data = {
+            "prompt": "Crazy dog in the park",
+            "negative_prompt": "b&w, blurry, low resolution",
+            "guidance_scale": 2,
+            "seed": 42
+        }
+        json_data = json.dumps(data)
+        
+        response = requests.post(url_freepik, headers=headers, data=json_data)
+        response.raise_for_status() # העלאת חריגה עבור קודי מצב שגויים (4xx או 5xx)
+
+        logger.info(f"Status Code: {response.status_code}")
+        logger.info("Response Body:")
+        logger.info(response.json()) # או response.text אם התגובה אינה JSON
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"An error occurred: {e}")
+
+
+
+
+
+        
+        
+        # image_url = response.data[0].url
+        # logger.info(f"Generated image URL: {image_url}")
+        
+        # # הורדת התמונה מה-URL
+        # image_response = requests.get(image_url)
+        # image_response.raise_for_status()
+        
+        # החזרת התמונה כקובץ
+        return send_file(
+            # io.BytesIO(image_response.content),
+            # mimetype='image/png',
+            # as_attachment=True,
+            # download_name='generated_image.png'
+            response
+        )
+        
+    except Exception as e:
+        logger.error(f"Unexpected error processing text-to-image request: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error_type": type(e).__name__,
+            "error": str(e)
+        }), 500
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
+
+
+
+
+    
