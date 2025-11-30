@@ -14,6 +14,7 @@ from openai import OpenAI
 import logging
 from dotenv import load_dotenv
 import google.generativeai as genai
+from google.generativeai import types
 
 from flask_cors import CORS
 
@@ -124,16 +125,19 @@ def gemini_gen_image():
 
     try:
         model = genai.GenerativeModel('gemini-2.5-flash-image')
-        response = model.generate_content_async(user_prompt)
-       
-      
+        response = model.generate_images(
+        model='imagen-4.0-generate-001',
+        prompt=user_prompt,
+        config=types.GenerateImagesConfig(
+        number_of_images= 4,
+        ))
 
-        logger.info("Gemini response received successfully", response)
+        logger.info("Gemini response received successfully", response.generated_images)
     
         return jsonify({
             "status": "success",
             "data": {
-                "response_parts": response.parts
+                "response_parts": response.generated_images
             }
         })
         
