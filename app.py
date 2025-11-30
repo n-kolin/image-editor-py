@@ -495,7 +495,7 @@ def text_to_image_get():
         # )
         return jsonify({
                 "status": "success",
-                "data": response,
+                "base64": response.data[0].base64,
         })
         
     except Exception as e:
