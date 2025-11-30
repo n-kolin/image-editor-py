@@ -405,13 +405,16 @@ def text_to_image_post():
         # image_response.raise_for_status()
         
         # החזרת התמונה כקובץ
-        return send_file(
+        # return send_file(
             # io.BytesIO(image_response.content),
             # mimetype='image/png',
             # as_attachment=True,
             # download_name='generated_image.png'
-            response
-        )
+        # )
+        return jsonify({
+                "status": "success",
+                "data": response.json(),
+        })
         
     except Exception as e:
         logger.error(f"Unexpected error processing text-to-image request: {str(e)}")
@@ -448,7 +451,7 @@ def text_to_image_get():
 
         headers = {
             'Content-Type': 'application/json',
-            'x-freepik-api-key': api_key_freepik
+            'x-freepik-api-key': api_key_fr
         }
 
         data = {
@@ -483,13 +486,17 @@ def text_to_image_get():
         # image_response.raise_for_status()
         
         # החזרת התמונה כקובץ
-        return send_file(
+        # return send_file(
             # io.BytesIO(image_response.content),
             # mimetype='image/png',
             # as_attachment=True,
             # download_name='generated_image.png'
-            response
-        )
+            # response
+        # )
+        return jsonify({
+                "status": "success",
+                "data": response.json(),
+        })
         
     except Exception as e:
         logger.error(f"Unexpected error processing text-to-image request: {str(e)}")
