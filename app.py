@@ -124,15 +124,12 @@ def gemini_gen_image():
 
 
     try:
-        # model = genai.GenerativeModel('gemini-2.5-flash-image')
-        # response = model.generate_content(
-        # model="gemini-2.5-flash-image",
-        # contents=[user_prompt],
-        # )
-        response = client_2.models.generate_content(
+        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        response = model.generate_content_async(
         model="gemini-2.5-flash-image",
         contents=[user_prompt],
         )
+       
       
 
         logger.info("Gemini response received successfully", response)
