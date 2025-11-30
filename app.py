@@ -148,13 +148,16 @@ def gemini_gen_image():
             "status": "error",
             "error": str(e)
         }), 500
-
+@app.route('/list', methods=['GET'])
+def fun():
+    logger.info("Root endpoint accessed")
+    return {'message': genai.list_models()
+}
 
 @app.route('/', methods=['GET'])
 def fun():
     logger.info("Root endpoint accessed")
     return {'message': 'Image Editor API is running!'}
-
 
 SYSTEM_PROMPT = """
 You are an AI system that generates JSON objects for image editing based on natural language requests.
