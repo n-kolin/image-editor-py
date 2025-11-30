@@ -120,15 +120,11 @@ def gemini_gen_image():
     request_data = request.json
     user_prompt = request_data.get('prompt', 'Hello, Gemini!')
     logger.info(f"Received Gemini prompt: {user_prompt}")
-    client_2 = genai.Client()
 
 
     try:
         model = genai.GenerativeModel('gemini-2.5-flash-image')
-        response = model.generate_content_async(
-        model="gemini-2.5-flash-image",
-        contents=[user_prompt],
-        )
+        response = model.generate_content_async(user_prompt)
        
       
 
@@ -137,7 +133,7 @@ def gemini_gen_image():
         return jsonify({
             "status": "success",
             "data": {
-                "response_text": response.parts
+                "response_parts": response.parts
             }
         })
         
@@ -148,8 +144,10 @@ def gemini_gen_image():
             "status": "error",
             "error": str(e)
         }), 500
+    
+
 @app.route('/list', methods=['GET'])
-def fun():
+def fun_list():
     logger.info("Root endpoint accessed")
     return {'message': genai.list_models()
 }
