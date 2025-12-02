@@ -124,7 +124,7 @@ def gemini_gen_image():
 
     try:
         model = genai.GenerativeModel('gemini-2.5-flash-image')
-        response = model.generate_content(
+        response = model.generate_content_async(
         contents=[user_prompt],
         )
        
@@ -153,7 +153,7 @@ def gemini_gen_image_base64():
     
     try:
         model = genai.GenerativeModel('gemini-2.5-flash-image')
-        response = model.generate_content(
+        response = model.generate_content_async(
         contents=["Create a picture of a nano banana dish in a fancy restaurant with a Gemini theme"],
         )
            
