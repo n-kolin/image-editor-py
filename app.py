@@ -14,7 +14,6 @@ from openai import OpenAI
 import logging
 from dotenv import load_dotenv
 import google.generativeai as genai
-from google.generativeai import types
 
 from flask_cors import CORS
 
@@ -124,20 +123,20 @@ def gemini_gen_image():
 
 
     try:
-        model = genai.GenerativeModel('imagen-4.0-generate-001')
-        response = model.generate_images(
-        model='imagen-4.0-generate-001',
-        prompt=user_prompt,
-        config=types.GenerateImagesConfig(
-        number_of_images= 4,
-        ))
+        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        response = model.generate_content_async(
+        model="gemini-2.5-flash-image",
+        contents=[user_prompt],
+        )
+       
+      
 
-        logger.info("Gemini response received successfully", response.generated_images)
+        logger.info("Gemini response received successfully", response)
     
         return jsonify({
             "status": "success",
             "data": {
-                "response_parts": response.generated_images
+                "response_parts": response.parts
             }
         })
         
@@ -148,13 +147,11 @@ def gemini_gen_image():
             "status": "error",
             "error": str(e)
         }), 500
-    
-
 @app.route('/list', methods=['GET'])
-def fun_list():
-    response = genai.list_models()
-    logger.info(f"Root endpoint accessed {response}")
-    return { 'message': 'Image Editor API is running!' }
+def fun():
+    logger.info("Root endpoint accessed")
+    return {'message': genai.list_models()
+}
 
 @app.route('/', methods=['GET'])
 def fun():
