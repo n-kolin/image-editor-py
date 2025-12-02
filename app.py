@@ -147,11 +147,38 @@ def gemini_gen_image():
             "status": "error",
             "error": str(e)
         }), 500
-@app.route('/list', methods=['GET'])
-def fun():
-    logger.info("Root endpoint accessed")
-    return {'message': genai.list_models()
-}
+    
+
+@app.route('/gemini-gen-image-base64', methods=['GET'])
+def gemini_gen_image_base64():
+    
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        response = model.generate_content_async(
+        model="gemini-2.5-flash-image",
+        contents=["Create a picture of a nano banana dish in a fancy restaurant with a Gemini theme"],
+        )
+           
+
+        logger.info("Gemini response received successfully", response)
+    
+        return jsonify({
+            "status": "success",
+            "data": {
+                "response_parts": jsonify(response.parts)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating text with Gemini: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500
+    
+   
+
 
 @app.route('/', methods=['GET'])
 def fun():
