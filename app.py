@@ -576,9 +576,11 @@ def text_to_image_get():
         logger.info("Response Body:")
         logger.info(response.json()) # או response.text אם התגובה אינה JSON
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"An error occurred: {e}")
-
+        return jsonify({
+                "status": "success",
+                "base64": response.json()
+        })
+    
 
 
 
@@ -600,10 +602,7 @@ def text_to_image_get():
             # download_name='generated_image.png'
             # response
         # )
-        return jsonify({
-                "status": "success",
-                "base64": response.json()
-        })
+        
         
     except Exception as e:
         logger.error(f"Unexpected error processing text-to-image request: {str(e)}")
