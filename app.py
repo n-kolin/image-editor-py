@@ -626,7 +626,7 @@ def text_to_image_gem():
 # הגדרת API Key (ניתן לקחת ממשתני סביבה)
 
 # כתובת ה-API
-    url_gem = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-image:generateContent"
+    url_gem = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent"
     logger.info(f"url_gem: {url_gem}")
 
 # Headers
@@ -634,6 +634,7 @@ def text_to_image_gem():
         "x-goog-api-key": api_key_gemini,
         "Content-Type": "application/json"
     }
+
 
 # Body של הבקשה
     data = {
