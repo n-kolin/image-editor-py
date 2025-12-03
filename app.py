@@ -124,13 +124,13 @@ def gemini_gen_image():
 
     try:
         model = genai.GenerativeModel('gemini-2.5-flash-image')
-        response = model.generate_content_async(
+        response = model.generate_content(
         contents=[user_prompt],
         )
        
       
 
-        logger.info("Gemini response received successfully", response)
+        logger.info(f"Gemini response received successfully {response}")
     
         return jsonify({
             "status": "success",
@@ -158,12 +158,12 @@ def gemini_gen_image_base64():
         )
            
 
-        logger.info(f"Gemini response received successfully {jsonify(response)}")
+        logger.info(f"Gemini response received successfully {response}")
     
         return jsonify({
             "status": "success",
             "data": {
-                "response_parts": jsonify(response)
+                "response_parts": json(response)
             }
         })
         
