@@ -627,6 +627,7 @@ def text_to_image_gem():
 
 # כתובת ה-API
     url_gem = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent"
+    logger.info(f"url_gem: {url_gem}")
 
 # Headers
     headers = {
@@ -645,6 +646,7 @@ def text_to_image_gem():
 
 # ביצוע הבקשה
     response = requests.post(url_gem, headers=headers, json=data)
+    logger.info(f"response: {response.json()}")
 
 # בדיקת התשובה
     if response.status_code == 200:
