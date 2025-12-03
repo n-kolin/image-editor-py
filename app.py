@@ -621,4 +621,60 @@ if __name__ == "__main__":
 
 
 
+@app.route('/img-gem', methods=['GET'])
+def text_to_image_gem():
+# הגדרת API Key (ניתן לקחת ממשתני סביבה)
+
+# כתובת ה-API
+    url_gem = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent"
+
+# Headers
+    headers = {
+        "x-goog-api-key": api_key_gemini,
+        "Content-Type": "application/json"
+    }
+
+# Body של הבקשה
+    data = {
+        "contents": [{
+            "parts": [
+                {"text": "Create a picture of a nano banana dish in a fancy restaurant with a Gemini theme"}
+            ]
+        }]
+    }
+
+# ביצוע הבקשה
+    response = requests.post(url_gem, headers=headers, json=data)
+
+# בדיקת התשובה
+    if response.status_code == 200:
+        response_json = response.json()
+    
+    # חילוץ ה-base64 data מהתשובה
+    # הנתיב המדויק תלוי במבנה התשובה של Gemini
+        try:
+            image_data = response_json['candidates'][0]['content']['parts'][0]['inlineData']['data']
+        
+        # פענוח מ-base64
+            # image_bytes = base64.b64decode(image_data)
+        
+        # # שמירה לקובץ
+        # with open('gemini-native-image.png', 'wb') as f:
+        #     f.write(image_bytes)
+        
+        # print("התמונה נשמרה בהצלחה ל-gemini-native-image.png")
+            return jsonify({
+                'data': image_data,
+                'status': 'success'
+            })
+        except (KeyError, IndexError) as e:
+            return jsonify({
+                'error': e,
+                'status': 'error'
+            })
+    else:
+        return jsonify({
+                'error': 'error',
+                'status': 'error'
+            })
     
