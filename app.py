@@ -15,7 +15,7 @@ import logging
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-from flask_cors import CORS
+# from flask_cors import CORS
 
 # Load environment variables
 load_dotenv()
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 
-CORS(app, resources={r"/*": {"origins": "https://image-editor-amq7.onrender.com"}})
+# CORS(app, resources={r"/*": {"origins": "https://image-editor-amq7.onrender.com"}})
 
 # Log environment setup
 api_key = os.environ.get("OPENAI_API_KEY")
@@ -122,7 +122,7 @@ def gemini_gen_image():
     logger.info(f"Received Gemini prompt: {user_prompt}")
 
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        model = genai.GenerativeModel('gemini-2.0-flash-image')
         response = model.generate_content("Create a picture of a nano banana dish in a fancy restaurant with a Gemini theme")
 
         # response = client.models.generate_content(
@@ -558,7 +558,7 @@ def text_to_image_get():
 
         headers = {
             'Content-Type': 'application/json',
-            'x-freepik-api-key': api_key_fr
+            'x-freepik-api-key': api_key_freepik
         }
 
         data = {
@@ -602,7 +602,7 @@ def text_to_image_get():
         # )
         return jsonify({
                 "status": "success",
-                "base64": response.data[0].base64,
+                "base64": response.json().data[0].base64,
         })
         
     except Exception as e:
