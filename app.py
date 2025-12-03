@@ -158,12 +158,12 @@ def gemini_gen_image_base64():
         )
            
 
-        logger.info("Gemini response received successfully", response)
+        logger.info(f"Gemini response received successfully {jsonify(response)}")
     
         return jsonify({
             "status": "success",
             "data": {
-                "response_parts": jsonify(response.parts)
+                "response_parts": jsonify(response)
             }
         })
         
