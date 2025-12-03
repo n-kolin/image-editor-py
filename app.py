@@ -523,7 +523,7 @@ def text_to_image_post():
 
         return jsonify({
                 "status": "success",
-                "base64": response.json().data[0].base64
+                "base64": response.json()['data'][0]['base64']
         })
         
     except Exception as e:
