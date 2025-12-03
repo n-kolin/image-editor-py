@@ -681,3 +681,55 @@ def text_to_image_gem():
                 'status': 'error'
             })
     
+
+
+
+
+@app.route('/gpt', methods=['POST'])
+def chat_with_gpt():
+    
+    
+    try:
+        request_data = request.json
+        if not request_data or 'prompt' not in request_data:
+            logger.error("Missing 'prompt' in request data")
+            return jsonify({
+                "status": "error",
+                "error": "Missing 'prompt' in request data"
+            }), 400
+        
+        user_prompt = request_data['prompt']
+        logger.info(f"Received design prompt: {user_prompt}")
+        
+        
+        
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini", 
+            messages=[
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.8, 
+        )
+        
+        # חילוץ התשובה מהמודל
+        content = response.choices[0].message.content
+        logger.debug(f"Raw response from OpenAI: {content}")
+        
+        return jsonify({
+            "status": "success",
+            "data": {
+                "response_text": content
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"Unexpected error processing request: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error_type": type(e).__name__,
+            "error": str(e)
+        }), 500
+
