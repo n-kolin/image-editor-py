@@ -521,7 +521,10 @@ def text_to_image_post():
         # )
         #??? TypeError: The view function for 'text_to_image_post' did not return a valid response. The function either returned None or ended without a return statement.
 
-        return jsonify({response.data[0]})
+        return jsonify({
+                "status": "success",
+                "base64": response.json().data[0].base64
+        })
         
     except Exception as e:
         logger.error(f"Unexpected error processing text-to-image request: {str(e)}")
@@ -578,15 +581,10 @@ def text_to_image_get():
 
         return jsonify({
                 "status": "success",
-                "base64": response.json().data[0].base64
+                "base64": response.json()['data'][0]['base64']
         })
     
-
-
-
-
-        
-        
+      
         # image_url = response.data[0].url
         # logger.info(f"Generated image URL: {image_url}")
         
