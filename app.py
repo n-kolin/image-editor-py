@@ -676,7 +676,7 @@ def text_to_image_gem():
 # הגדרת API Key (ניתן לקחת ממשתני סביבה)
 
 # כתובת ה-API
-    url_gem = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent"
+    url_gem = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001-image:generateContent"
     logger.info(f"url_gem: {url_gem}")
 
 # Headers
@@ -690,7 +690,7 @@ def text_to_image_gem():
     data = {
         "contents": [{
             "parts": [
-                {"text": "Create a picture of a nano banana dish in a fancy restaurant with a Gemini theme"}
+                {"text": "Create a picture of a banana dish"}
             ]
         }]
     }
