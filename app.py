@@ -545,13 +545,7 @@ def text_to_image_get():
     
     try:
         
-        user_prompt = """Create a modern, minimalist logo for a premium shoe store called 'SoleStride'.
-  The design should feature a sleek, stylized shoe silhouette integrated with
-  elegant typography. Use a sophisticated color palette of deep navy blue and
-  gold accents. The logo should convey luxury, comfort, and contemporary fashion.
-  Include both a primary logo with the shoe icon and text, and a simplified icon-only version.
-  The style should be clean, professional, and suitable for both digital and print use.
-  Vector-style design, flat colors, negative space utilization, balanced composition"""
+        user_prompt = """Create a picture of a Hanukkah menorah in a window with 8 candles and another taller candle in the center. The background will be of a dark sky with twinkling stars."""
         
         logger.info(f"Received text-to-image prompt: {user_prompt}")
         
