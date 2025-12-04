@@ -614,6 +614,56 @@ def text_to_image_get():
 
 
 
+@app.route('/gpt', methods=['POST'])
+def chat_with_gpt():
+    
+    
+    try:
+        request_data = request.json
+        if not request_data or 'prompt' not in request_data:
+            logger.error("Missing 'prompt' in request data")
+            return jsonify({
+                "status": "error",
+                "error": "Missing 'prompt' in request data"
+            }), 400
+        
+        user_prompt = request_data['prompt']
+        logger.info(f"Received design prompt: {user_prompt}")
+        
+        
+        
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini", 
+            messages=[
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.8, 
+        )
+        
+        # חילוץ התשובה מהמודל
+        content = response.choices[0].message.content
+        logger.debug(f"Raw response from OpenAI: {content}")
+        
+        return jsonify({
+            "status": "success",
+            "data": {
+                "response_text": content
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"Unexpected error processing request: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error_type": type(e).__name__,
+            "error": str(e)
+        }), 500
+
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
@@ -626,7 +676,7 @@ def text_to_image_gem():
 # הגדרת API Key (ניתן לקחת ממשתני סביבה)
 
 # כתובת ה-API
-    url_gem = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent"
+    url_gem = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent"
     logger.info(f"url_gem: {url_gem}")
 
 # Headers
@@ -682,54 +732,4 @@ def text_to_image_gem():
             })
     
 
-
-
-
-@app.route('/gpt', methods=['POST'])
-def chat_with_gpt():
-    
-    
-    try:
-        request_data = request.json
-        if not request_data or 'prompt' not in request_data:
-            logger.error("Missing 'prompt' in request data")
-            return jsonify({
-                "status": "error",
-                "error": "Missing 'prompt' in request data"
-            }), 400
-        
-        user_prompt = request_data['prompt']
-        logger.info(f"Received design prompt: {user_prompt}")
-        
-        
-        
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-mini", 
-            messages=[
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.8, 
-        )
-        
-        # חילוץ התשובה מהמודל
-        content = response.choices[0].message.content
-        logger.debug(f"Raw response from OpenAI: {content}")
-        
-        return jsonify({
-            "status": "success",
-            "data": {
-                "response_text": content
-            }
-        })
-    
-    except Exception as e:
-        logger.error(f"Unexpected error processing request: {str(e)}")
-        logger.error(f"Error type: {type(e).__name__}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return jsonify({
-            "status": "error",
-            "error_type": type(e).__name__,
-            "error": str(e)
-        }), 500
 
